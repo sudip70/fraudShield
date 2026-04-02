@@ -12,8 +12,7 @@ __pycache__/
 .DS_Store
 
 # Data
-data/FraudShield_Banking_Dataset.csv
-data/synthetic_fraud_data.csv
+data/FraudShield_Banking_Data.csv
 
 #model
 models/model.pkl

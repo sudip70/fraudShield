@@ -11,8 +11,8 @@ __pycache__/
 # Mac system files
 .DS_Store
 
-# Data
-data/FraudShield_Banking_Data.csv
+# Data files
+data/
 
-#model
-models/model.pkl
+# Models
+models/

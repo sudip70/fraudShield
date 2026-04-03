@@ -13,12 +13,11 @@
 
 <!-- ── HEADER ─────────────────────────────────────────────────────────────── -->
 <header>
-  <div class="scanlines"></div>
   <div class="wrapper">
     <div class="header-grid">
       <div>
         <div class="header-eyebrow">End-to-End Portfolio Project</div>
-        <h1>Fraud<span>Shield</span><br>Detection</h1>
+        <h1>Fraud<em>Shield</em><br>Detection</h1>
         <p class="header-sub">
           A full-stack fraud detection system — EDA insights, ML model comparison,
           SHAP explainability, threshold optimisation, and a live transaction scorer
@@ -27,7 +26,7 @@
       </div>
       <div>
         <div class="status-badge" id="status-badge">
-          <div class="spinner" style="width:8px;height:8px;border-width:1px"></div>
+          <div class="spinner" style="width:7px;height:7px;border-width:1px"></div>
           Connecting…
         </div>
       </div>
@@ -36,26 +35,36 @@
 </header>
 
 <!-- ── KPI STRIP ──────────────────────────────────────────────────────────── -->
-<div class="kpi-strip" id="kpi-strip">
+<div class="kpi-strip">
   <div class="kpi-item">
+    <div class="kpi-accent-line" style="background:var(--accent)"></div>
     <div class="kpi-val" id="kpi-total">—</div>
     <div class="kpi-lbl">Transactions</div>
   </div>
   <div class="kpi-item">
+    <div class="kpi-accent-line" style="background:var(--danger)"></div>
     <div class="kpi-val" id="kpi-fraud">—</div>
     <div class="kpi-lbl">Fraud Cases</div>
   </div>
   <div class="kpi-item">
+    <div class="kpi-accent-line" style="background:var(--warning)"></div>
     <div class="kpi-val" id="kpi-rate">—</div>
     <div class="kpi-lbl">Fraud Rate</div>
-    <div class="kpi-sub">Class imbalance ~20:1</div>
+    <div class="kpi-sub">Class imbalance</div>
   </div>
   <div class="kpi-item">
+    <div class="kpi-accent-line" style="background:var(--info)"></div>
+    <div class="kpi-val" id="kpi-vol">—</div>
+    <div class="kpi-lbl">Total Volume</div>
+  </div>
+  <div class="kpi-item">
+    <div class="kpi-accent-line" style="background:var(--purple)"></div>
     <div class="kpi-val" id="kpi-model">—</div>
     <div class="kpi-lbl">Best Model</div>
     <div class="kpi-sub" id="kpi-auc">—</div>
   </div>
   <div class="kpi-item">
+    <div class="kpi-accent-line" style="background:var(--accent)"></div>
     <div class="kpi-val" id="kpi-cv">—</div>
     <div class="kpi-lbl">5-Fold CV AUC</div>
     <div class="kpi-sub">Stratified</div>
@@ -64,13 +73,11 @@
 
 <!-- ── TABS ───────────────────────────────────────────────────────────────── -->
 <div class="tabs-wrapper">
-  <div class="wrapper">
-    <div class="tabs">
-      <button class="tab-btn active" onclick="switchTab('eda', this)"><span class="tab-icon">📊</span>Exploratory Analysis</button>
-      <button class="tab-btn" onclick="switchTab('model', this)"><span class="tab-icon">🤖</span>Model Performance</button>
-      <button class="tab-btn" onclick="switchTab('scorer', this)"><span class="tab-icon">🎯</span>Live Scorer</button>
-      <button class="tab-btn" onclick="switchTab('impact', this)"><span class="tab-icon">💼</span>Business Impact</button>
-    </div>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('eda', this)"><span class="tab-icon">📊</span>Exploratory Analysis</button>
+    <button class="tab-btn" onclick="switchTab('model', this)"><span class="tab-icon">🤖</span>Model Performance</button>
+    <button class="tab-btn" onclick="switchTab('scorer', this)"><span class="tab-icon">🎯</span>Live Scorer</button>
+    <button class="tab-btn" onclick="switchTab('impact', this)"><span class="tab-icon">💼</span>Business Impact</button>
   </div>
 </div>
 
@@ -78,9 +85,9 @@
 
   <!-- API offline banner -->
   <div class="api-banner" id="api-banner">
-    ⚠️ &nbsp;API not reachable at <code id="api-url-display"></code>. &nbsp;
+    ⚠ &nbsp;API not reachable at <code id="api-url-display"></code>. &nbsp;
     To run locally: <code>uvicorn backend.main:app --reload</code> &nbsp;|&nbsp;
-    For production, deploy to Render and update <code>API_URL</code> in <code>app.js</code>.
+    Update <code>API_URL</code> in <code>app.js</code> for production.
   </div>
 
   <!-- ════════════════════════════════════════════════════════════════════════
@@ -88,70 +95,71 @@
   ══════════════════════════════════════════════════════════════════════════ -->
   <div class="tab-panel active" id="tab-eda">
     <div class="section-head">
-      <div class="section-title">Fraud Patterns <span>at a Glance</span></div>
-      <div class="section-cap">Where, when, and how fraud occurs across the transaction dataset.</div>
+      <div class="section-title">Fraud Patterns <em>at a Glance</em></div>
+      <div class="section-cap">Where, when, and how fraud occurs across 50,000 banking transactions.</div>
     </div>
 
-    <div class="grid-2" style="margin-bottom:16px">
+    <div class="grid-2" style="margin-bottom:14px">
       <div class="card">
         <div class="card-title">Fraud Rate by Transaction Type</div>
-        <div class="chart-wrap" style="height:200px"><canvas id="chart-type"></canvas></div>
+        <div style="height:190px"><canvas id="chart-type"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Fraud Rate by Merchant Category</div>
-        <div class="chart-wrap" style="height:200px"><canvas id="chart-merchant"></canvas></div>
+        <div style="height:190px"><canvas id="chart-merchant"></canvas></div>
       </div>
     </div>
 
-    <div class="grid-2" style="margin-bottom:16px">
+    <div class="grid-2" style="margin-bottom:14px">
       <div class="card">
         <div class="card-title">Fraud Rate by City</div>
-        <div class="chart-wrap" style="height:280px"><canvas id="chart-city"></canvas></div>
+        <div style="height:270px"><canvas id="chart-city"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Fraud Rate by Hour of Day</div>
-        <div class="chart-wrap" style="height:280px"><canvas id="chart-hour"></canvas></div>
+        <div style="height:270px"><canvas id="chart-hour"></canvas></div>
       </div>
     </div>
 
-    <div class="grid-2" style="margin-bottom:16px">
+    <div class="grid-2" style="margin-bottom:14px">
       <div class="card">
         <div class="card-title">Amount Distribution — Fraud vs Normal</div>
-        <div class="chart-wrap" style="height:220px"><canvas id="chart-amount"></canvas></div>
+        <div style="height:210px"><canvas id="chart-amount"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Fraud Rate by Prior Fraud History</div>
-        <div class="chart-wrap" style="height:220px"><canvas id="chart-prevfraud"></canvas></div>
+        <div style="height:210px"><canvas id="chart-prevfraud"></canvas></div>
       </div>
     </div>
 
-    <div class="card" style="margin-bottom:16px">
+    <div class="card" style="margin-bottom:14px">
       <div class="card-title">Fraud Rate — International × New Merchant Combinations</div>
-      <div class="chart-wrap" style="height:180px"><canvas id="chart-combo"></canvas></div>
+      <div style="height:170px"><canvas id="chart-combo"></canvas></div>
     </div>
 
     <hr class="divider">
-    <div class="section-title" style="font-size:20px;margin-bottom:16px">Key <span>Insights</span></div>
+
+    <div class="section-title" style="font-size:18px;margin-bottom:14px">Key <em>Insights</em></div>
     <div class="insight-grid">
       <div class="insight-card">
         <div class="insight-icon">🌍</div>
         <div class="insight-title">International + New Merchant</div>
-        <div class="insight-body">The "Both" combination carries the highest fraud rate — the single strongest combined signal in the dataset.</div>
+        <div class="insight-body">The combined signal carries the highest fraud rate — strongest paired indicator in the dataset.</div>
       </div>
       <div class="insight-card">
         <div class="insight-icon">🕐</div>
         <div class="insight-title">Late-Night Spike</div>
-        <div class="insight-body">Fraud peaks after 22:00. <code style="font-size:11px;color:var(--mint)">Unusual_Time_Transaction</code> ranks in the top 3 predictors across all models.</div>
+        <div class="insight-body">Fraud peaks after 22:00. <code style="font-size:10px;color:var(--accent)">Unusual_Time_Transaction</code> ranks top-3 across all models.</div>
       </div>
       <div class="insight-card">
         <div class="insight-icon">📍</div>
         <div class="insight-title">Distance from Home</div>
-        <div class="insight-body">Fraudulent transactions occur on average 2× farther from home — a strong standalone risk indicator.</div>
+        <div class="insight-body">Fraudulent transactions occur on average 2× farther from home — a strong standalone risk signal.</div>
       </div>
       <div class="insight-card">
         <div class="insight-icon">📈</div>
         <div class="insight-title">Prior Fraud = #1 Predictor</div>
-        <div class="insight-body">Even a single prior fraud incident dramatically increases probability. Recidivism is the strongest individual feature.</div>
+        <div class="insight-body">Even one prior fraud incident dramatically raises probability. Recidivism is the strongest individual feature.</div>
       </div>
     </div>
   </div>
@@ -161,58 +169,53 @@
   ══════════════════════════════════════════════════════════════════════════ -->
   <div class="tab-panel" id="tab-model">
     <div class="section-head">
-      <div class="section-title">Model Comparison <span>&amp; Evaluation</span></div>
-      <div class="section-cap">Three classifiers · 5-fold stratified CV · SHAP explainability · Threshold optimiser</div>
+      <div class="section-title">Model Comparison <em>&amp; Evaluation</em></div>
+      <div class="section-cap">Three classifiers · 5-fold stratified CV · SHAP explainability · Decision threshold optimiser</div>
     </div>
 
-    <div class="card" style="margin-bottom:24px">
+    <div class="card" style="margin-bottom:18px">
       <div class="card-title">Model Comparison</div>
-      <div id="model-table-wrap">
-        <div class="loading"><div class="spinner"></div>Loading…</div>
-      </div>
+      <div id="model-table-wrap"><div class="loading"><div class="spinner"></div>Loading…</div></div>
     </div>
 
-    <div class="grid-2" style="margin-bottom:16px">
+    <div class="grid-2" style="margin-bottom:14px">
       <div class="card">
         <div class="card-title">ROC Curve</div>
-        <div class="chart-wrap" style="height:300px"><canvas id="chart-roc"></canvas></div>
+        <div style="height:290px"><canvas id="chart-roc"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Precision-Recall Curve</div>
-        <div class="chart-wrap" style="height:300px"><canvas id="chart-pr"></canvas></div>
+        <div style="height:290px"><canvas id="chart-pr"></canvas></div>
       </div>
     </div>
 
-    <div class="grid-2" style="margin-bottom:16px">
+    <div class="grid-2" style="margin-bottom:14px">
       <div class="card">
-        <div class="card-title">Confusion Matrix</div>
-        <div id="cm-wrap" style="padding:12px 0">
-          <div class="loading"><div class="spinner"></div>Loading…</div>
-        </div>
+        <div class="card-title">Confusion Matrix — Best Model @ 0.5</div>
+        <div id="cm-wrap" style="padding:10px 0"><div class="loading"><div class="spinner"></div>Loading…</div></div>
       </div>
       <div class="card">
         <div class="card-title">Feature Importance (Tree)</div>
-        <div class="chart-wrap" style="height:280px"><canvas id="chart-fi"></canvas></div>
+        <div style="height:270px"><canvas id="chart-fi"></canvas></div>
       </div>
     </div>
 
-    <div class="grid-2" style="margin-bottom:16px">
+    <div class="grid-2" style="margin-bottom:14px">
       <div class="card">
-        <div class="card-title">Global SHAP Importance — Mean |SHAP|</div>
-        <div class="chart-wrap" style="height:280px"><canvas id="chart-shap"></canvas></div>
+        <div class="card-title">Global SHAP — Mean |SHAP|</div>
+        <div style="height:270px"><canvas id="chart-shap"></canvas></div>
       </div>
       <div class="card">
-        <div class="card-title">Calibration Curve — Reliability Diagram</div>
-        <div class="chart-wrap" style="height:280px"><canvas id="chart-cal"></canvas></div>
+        <div class="card-title">Calibration Curve</div>
+        <div style="height:270px"><canvas id="chart-cal"></canvas></div>
       </div>
     </div>
 
     <hr class="divider">
-    <div class="section-title" style="font-size:20px;margin-bottom:6px">
-      Decision Threshold <span>Optimiser</span>
-    </div>
-    <p style="color:var(--muted);font-size:13px;margin-bottom:22px">
-      Fraud models are never deployed at 0.5. Slide to see how precision, recall, and F1 trade off live.
+
+    <div class="section-title" style="font-size:18px;margin-bottom:6px">Threshold <em>Optimiser</em></div>
+    <p style="color:var(--text-dim);font-size:12px;margin-bottom:18px">
+      Fraud classifiers are never deployed at 0.5. Drag to see precision, recall, and F1 trade off in real time.
     </p>
     <div class="slider-row">
       <label>Threshold</label>
@@ -223,27 +226,24 @@
       <div class="t-metric"><div class="t-metric-val" id="tm-prec">—</div><div class="t-metric-lbl">Precision</div></div>
       <div class="t-metric"><div class="t-metric-val" id="tm-rec">—</div><div class="t-metric-lbl">Recall</div></div>
       <div class="t-metric"><div class="t-metric-val" id="tm-f1">—</div><div class="t-metric-lbl">F1</div></div>
-      <div class="t-metric"><div class="t-metric-val" id="tm-fp" style="color:var(--amber)">—</div><div class="t-metric-lbl">False Pos</div></div>
-      <div class="t-metric"><div class="t-metric-val" id="tm-fn" style="color:var(--red)">—</div><div class="t-metric-lbl">False Neg</div></div>
+      <div class="t-metric"><div class="t-metric-val" id="tm-fp" style="color:var(--warning)">—</div><div class="t-metric-lbl">False Pos</div></div>
+      <div class="t-metric"><div class="t-metric-val" id="tm-fn" style="color:var(--danger)">—</div><div class="t-metric-lbl">False Neg</div></div>
     </div>
     <div class="card">
       <div class="card-title">Precision / Recall / F1 vs Threshold</div>
-      <div class="chart-wrap" style="height:260px"><canvas id="chart-threshold"></canvas></div>
+      <div style="height:250px"><canvas id="chart-threshold"></canvas></div>
     </div>
 
     <hr class="divider">
+
     <div class="grid-2">
       <div>
-        <div class="section-title" style="font-size:20px;margin-bottom:16px">Model <span>Card</span></div>
-        <div class="model-card" id="model-card-content">
-          <div class="loading"><div class="spinner"></div>Loading…</div>
-        </div>
+        <div class="section-title" style="font-size:18px;margin-bottom:14px">Model <em>Card</em></div>
+        <div class="model-card" id="model-card-content"><div class="loading"><div class="spinner"></div>Loading…</div></div>
       </div>
       <div>
-        <div class="section-title" style="font-size:20px;margin-bottom:16px">Full Classification <span>Report</span></div>
-        <div id="clf-report-wrap">
-          <div class="loading"><div class="spinner"></div>Loading…</div>
-        </div>
+        <div class="section-title" style="font-size:18px;margin-bottom:14px">Classification <em>Report</em></div>
+        <div id="clf-report-wrap"><div class="loading"><div class="spinner"></div>Loading…</div></div>
       </div>
     </div>
   </div>
@@ -253,7 +253,7 @@
   ══════════════════════════════════════════════════════════════════════════ -->
   <div class="tab-panel" id="tab-scorer">
     <div class="section-head">
-      <div class="section-title">Live <span>Fraud Scorer</span></div>
+      <div class="section-title">Live <em>Fraud Scorer</em></div>
       <div class="section-cap">Enter a transaction for instant fraud probability, SHAP explanation, and risk breakdown.</div>
     </div>
 
@@ -265,7 +265,10 @@
           <div class="form-grid">
             <div class="field"><label>Amount ($)</label><input type="number" id="f-amount" value="5000" min="0" max="100000" step="100"></div>
             <div class="field"><label>Account Balance ($)</label><input type="number" id="f-balance" value="20000" min="0" max="100000" step="1000"></div>
-            <div class="field"><label>Distance from Home (km) <span style="font-size:10px;color:var(--mint);">auto</span></label><input type="number" id="f-distance" value="50" min="0" max="600" readonly style="background:var(--card-dark);cursor:not-allowed;opacity:0.7"></div>
+            <div class="field">
+              <label>Distance from Home (km) <span style="color:var(--accent);font-size:9px">auto</span></label>
+              <input type="number" id="f-distance" value="50" min="0" max="15000" readonly style="opacity:0.6;cursor:not-allowed">
+            </div>
             <div class="field"><label>Time (HH:MM)</label><input type="text" id="f-time" value="14:30"></div>
             <div class="field">
               <label>Transaction Type</label>
@@ -361,19 +364,16 @@
             <div class="prob-label">Fraud Probability</div>
             <div class="prob-number" id="result-prob">—</div>
             <div><span class="tier-badge" id="result-tier">—</span></div>
-            <div class="gauge-track">
-              <div class="gauge-fill" id="gauge-fill" style="width:0%"></div>
-            </div>
-            <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted)" id="result-meta-line">—</div>
+            <div class="gauge-track"><div class="gauge-fill" id="gauge-fill" style="width:0%"></div></div>
+            <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-faint)" id="result-meta-line">—</div>
 
             <div id="shap-section" style="display:none">
               <div class="flags-title">Why this score? (SHAP)</div>
               <div id="shap-waterfall"></div>
             </div>
 
-            <div class="flags-title">Risk Signals Detected</div>
+            <div class="flags-title">Risk Signals</div>
             <div id="result-flags"></div>
-
             <div class="result-meta" id="result-meta"></div>
           </div>
         </div>
@@ -383,7 +383,7 @@
             <span>Session History</span>
             <button class="btn-ghost" onclick="clearHistory()">Clear</button>
           </div>
-          <table class="data-table" id="history-table">
+          <table class="data-table">
             <thead><tr><th>#</th><th>Type</th><th>Amount</th><th>Location</th><th>Prob</th><th>Tier</th></tr></thead>
             <tbody id="history-body"></tbody>
           </table>
@@ -397,7 +397,7 @@
   ══════════════════════════════════════════════════════════════════════════ -->
   <div class="tab-panel" id="tab-impact">
     <div class="section-head">
-      <div class="section-title">Business <span>Impact Analysis</span></div>
+      <div class="section-title">Business <em>Impact Analysis</em></div>
       <div class="section-cap">Translating ML metrics into financial outcomes using a configurable cost matrix.</div>
     </div>
 
@@ -405,24 +405,24 @@
       <div class="card-title">Cost Matrix Configuration</div>
       <div class="cost-grid">
         <div class="field">
-          <label>Cost per False Negative (Missed Fraud, M)</label>
+          <label>Cost per False Negative (Missed Fraud, $)</label>
           <input type="number" id="cost-fn" value="5.0" min="0.1" max="10" step="0.1">
-          <span style="font-size:11px;color:var(--muted);margin-top:4px">Default = avg fraud amount from dataset</span>
+          <span style="font-size:10px;color:var(--text-faint);margin-top:4px">Default = avg fraud transaction amount</span>
         </div>
         <div class="field">
-          <label>Cost per False Positive (Blocked Legit, M)</label>
+          <label>Cost per False Positive (Blocked Legit, $)</label>
           <input type="number" id="cost-fp" value="0.00005" min="0.00001" max="0.01" step="0.00001">
-          <span style="font-size:11px;color:var(--muted);margin-top:4px">Investigation + churn overhead per blocked tx</span>
+          <span style="font-size:10px;color:var(--text-faint);margin-top:4px">Investigation + customer churn overhead</span>
         </div>
         <div class="field">
           <label>Expected Monthly Transactions</label>
           <input type="number" id="monthly-vol" value="50000" min="1000" max="500000" step="5000">
         </div>
       </div>
-      <button class="btn-primary" style="max-width:220px;margin-top:16px" onclick="recalcImpact()">Recalculate</button>
+      <button class="btn-primary" style="max-width:200px;margin-top:14px" onclick="recalcImpact()">Recalculate</button>
     </div>
 
-    <div class="biz-kpi-grid" id="biz-kpi-grid">
+    <div class="biz-kpi-grid">
       <div class="biz-kpi green"><div class="biz-kpi-val" id="biz-caught">—</div><div class="biz-kpi-lbl">Fraud Caught / Mo</div></div>
       <div class="biz-kpi red">  <div class="biz-kpi-val" id="biz-missed">—</div><div class="biz-kpi-lbl">Fraud Missed / Mo</div></div>
       <div class="biz-kpi amber"><div class="biz-kpi-val" id="biz-fp-cost">—</div><div class="biz-kpi-lbl">FP Investigation Cost</div></div>
@@ -432,24 +432,25 @@
     <div class="grid-2">
       <div class="card">
         <div class="card-title">Business Cost Curve vs Threshold</div>
-        <div class="chart-wrap" style="height:280px"><canvas id="chart-cost"></canvas></div>
+        <div style="height:270px"><canvas id="chart-cost"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Monthly Savings vs No-Model Baseline</div>
-        <div class="chart-wrap" style="height:280px"><canvas id="chart-savings"></canvas></div>
+        <div style="height:270px"><canvas id="chart-savings"></canvas></div>
       </div>
     </div>
 
     <hr class="divider">
-    <div class="grid-3" id="annual-grid" style="margin-bottom:0">
-      <div class="biz-kpi blue"  style="border:1px solid var(--border)"><div class="biz-kpi-val" id="biz-annual-save"    style="font-size:22px">—</div><div class="biz-kpi-lbl">Est. Annual Savings</div></div>
-      <div class="biz-kpi amber" style="border:1px solid var(--border)"><div class="biz-kpi-val" id="biz-annual-cost"    style="font-size:22px">—</div><div class="biz-kpi-lbl">Est. Annual Remaining Cost</div></div>
-      <div class="biz-kpi green" style="border:1px solid var(--border)"><div class="biz-kpi-val" id="biz-monthly-caught" style="font-size:22px">—</div><div class="biz-kpi-lbl">Fraud Txns Caught / Month</div></div>
+
+    <div class="grid-3" style="margin-bottom:0">
+      <div class="biz-kpi blue"  style="border:1px solid var(--border)"><div class="biz-kpi-val" id="biz-annual-save"    style="font-size:20px">—</div><div class="biz-kpi-lbl">Est. Annual Savings</div></div>
+      <div class="biz-kpi amber" style="border:1px solid var(--border)"><div class="biz-kpi-val" id="biz-annual-cost"    style="font-size:20px">—</div><div class="biz-kpi-lbl">Est. Annual Remaining Cost</div></div>
+      <div class="biz-kpi green" style="border:1px solid var(--border)"><div class="biz-kpi-val" id="biz-monthly-caught" style="font-size:20px">—</div><div class="biz-kpi-lbl">Fraud Txns Caught / Month</div></div>
     </div>
 
-    <p style="font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-top:20px;line-height:1.9;border-top:1px solid var(--border);padding-top:16px">
-      ASSUMPTIONS: Cost figures are illustrative and denominated in the same units as the dataset (Millions).
-      FP/FN costs should be calibrated to your institution's actual structure.
+    <p style="font-size:10px;color:var(--text-faint);font-family:var(--font-mono);margin-top:18px;line-height:1.9;border-top:1px solid var(--border);padding-top:14px;letter-spacing:0.02em">
+      ASSUMPTIONS — Cost figures are illustrative and denominated in the same units as the dataset.
+      FP/FN costs should be calibrated to your institution's actual cost structure.
       Projections scale linearly from the 10,000-row test set to monthly volume.
     </p>
   </div>
@@ -466,7 +467,7 @@
         <span class="stack-tag">LightGBM</span>
         <span class="stack-tag">SHAP</span>
         <span class="stack-tag">FastAPI</span>
-        <span class="stack-tag">Chart.js</span>
+        <span class="stack-tag">Chart.js 4</span>
         <span class="stack-tag">Render</span>
       </div>
     </div>

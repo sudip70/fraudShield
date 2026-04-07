@@ -33,7 +33,12 @@ from src.pipeline import preprocess, _shap_values_for_class1
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
 _cors_raw    = os.environ.get("CORS_ORIGINS", "*")
-CORS_ORIGINS = [o.strip() for o in _cors_raw.split(",")]
+if _cors_raw.strip() in ("", "*"):
+    CORS_ORIGINS = ["*"]
+else:
+    CORS_ORIGINS = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+    if not CORS_ORIGINS:
+        CORS_ORIGINS = ["*"]
 
 ARTIFACT_PATH = os.environ.get(
     "ARTIFACT_PATH",
@@ -61,8 +66,15 @@ def load_artifacts():
             "Run locally:  python src/pipeline.py data/FraudShield_Banking_Data.csv\n"
             "Then commit:  git add models/model.pkl && git commit -m 'add model artifact'"
         )
-    with open(path, "rb") as f:
-        arts = pickle.load(f)
+    try:
+        with open(path, "rb") as f:
+            arts = pickle.load(f)
+    except ModuleNotFoundError as exc:
+        missing_pkg = exc.name or "unknown"
+        raise RuntimeError(
+            f"Model artifact requires '{missing_pkg}' but it is not installed in this environment. "
+            "Install backend dependencies with: pip install -r backend/requirements.txt"
+        ) from exc
     log.info(
         "Artifacts loaded — best model: %s  ROC-AUC: %.4f  test_set_size: %d",
         arts["best_name"],
@@ -115,6 +127,40 @@ def _max_tier(a: str, b: str) -> str:
     return a if _TIER_RANK[a] >= _TIER_RANK[b] else b
 
 
+# ── Input domain constraints ──────────────────────────────────────────────────
+VALID_TX_TYPES = {"Online", "ATM", "POS", "Wire Transfer"}
+VALID_MERCHANT_CATS = {
+    "Airlines", "ATM", "Clothing", "Electronics", "Entertainment", "Fuel",
+    "Grocery", "Healthcare", "Hotel", "Jewelry", "Online Shopping",
+    "Pharmacy", "Restaurant", "Travel",
+}
+VALID_CARD_TYPES = {"Debit", "Credit", "Prepaid"}
+CITY_COUNTRY = {
+    "New York": "US", "Los Angeles": "US", "Chicago": "US", "Houston": "US",
+    "Phoenix": "US", "Philadelphia": "US", "San Antonio": "US", "San Diego": "US",
+    "Dallas": "US", "San Francisco": "US", "Austin": "US", "Seattle": "US",
+    "Denver": "US", "Nashville": "US", "Louisville": "US", "Portland": "US",
+    "Las Vegas": "US", "Memphis": "US", "Atlanta": "US", "Miami": "US",
+    "Boston": "US", "Washington DC": "US", "Detroit": "US", "Indianapolis": "US",
+    "Columbus": "US", "Charlotte": "US", "Toronto": "CA", "Vancouver": "CA",
+    "Montreal": "CA", "Calgary": "CA", "London": "GB", "Paris": "FR",
+    "Berlin": "DE", "Madrid": "ES", "Rome": "IT", "Amsterdam": "NL",
+    "Dublin": "IE", "Zurich": "CH", "Vienna": "AT", "Brussels": "BE",
+    "Copenhagen": "DK", "Stockholm": "SE", "Oslo": "NO", "Helsinki": "FI",
+    "Lisbon": "PT", "Istanbul": "TR", "Tokyo": "JP", "Singapore": "SG",
+    "Mumbai": "IN", "São Paulo": "BR", "Buenos Aires": "AR",
+}
+VALID_CITIES = set(CITY_COUNTRY.keys())
+
+
+def _expected_international(home_loc: str, tx_loc: str):
+    home_country = CITY_COUNTRY.get(home_loc)
+    tx_country   = CITY_COUNTRY.get(tx_loc)
+    if home_country is None or tx_country is None:
+        return None
+    return "Yes" if home_country != tx_country else "No"
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # HEALTH
 # ══════════════════════════════════════════════════════════════════════════════
@@ -154,6 +200,7 @@ def version():
         "fraud_rate":           meta.get("fraud_rate"),
         "best_model":           meta.get("best_model", arts["best_name"]),
         "test_set_size":        arts.get("test_set_size"),
+        "model_selection_metric": meta.get("model_selection_metric"),
         "optimal_f1_threshold": meta.get(
             "optimal_f1_threshold",
             arts["threshold_analysis"]["optimal_f1_threshold"],
@@ -316,6 +363,14 @@ class TransactionInput(BaseModel):
     is_new:       str
     unusual:      str
 
+    @validator(
+        "tx_type", "merchant_cat", "card_type", "tx_location", "home_loc",
+        "is_intl", "is_new", "unusual",
+        pre=True,
+    )
+    def strip_string_inputs(cls, v):
+        return v.strip() if isinstance(v, str) else v
+
     @validator("tx_time")
     def validate_time_format(cls, v):
         try:
@@ -324,13 +379,51 @@ class TransactionInput(BaseModel):
             raise ValueError("tx_time must be HH:MM format, e.g. '14:30'")
         return v
 
-    @validator("is_intl", "is_new", "unusual")
+    @validator("tx_type")
+    def validate_tx_type(cls, v):
+        if v not in VALID_TX_TYPES:
+            raise ValueError(f"tx_type must be one of: {sorted(VALID_TX_TYPES)}")
+        return v
+
+    @validator("merchant_cat")
+    def validate_merchant_category(cls, v):
+        if v not in VALID_MERCHANT_CATS:
+            raise ValueError(f"merchant_cat must be one of: {sorted(VALID_MERCHANT_CATS)}")
+        return v
+
+    @validator("card_type")
+    def validate_card_type(cls, v):
+        if v not in VALID_CARD_TYPES:
+            raise ValueError(f"card_type must be one of: {sorted(VALID_CARD_TYPES)}")
+        return v
+
+    @validator("tx_location", "home_loc")
+    def validate_location(cls, v):
+        if v not in VALID_CITIES:
+            raise ValueError("Location must be one of the supported city values")
+        return v
+
+    @validator("is_new", "unusual")
     def validate_yes_no(cls, v):
         if v not in ("Yes", "No"):
             raise ValueError("Must be 'Yes' or 'No'")
         return v
 
-    @validator("amount", "balance", "avg_amount", "max_24h")
+    @validator("is_intl")
+    def validate_international_consistency(cls, v, values):
+        if v not in ("Yes", "No"):
+            raise ValueError("Must be 'Yes' or 'No'")
+        expected = _expected_international(
+            values.get("home_loc"),
+            values.get("tx_location"),
+        )
+        if expected is not None and v != expected:
+            raise ValueError(
+                f"is_intl must match selected locations (expected '{expected}')"
+            )
+        return v
+
+    @validator("amount", "balance", "avg_amount", "max_24h", "distance")
     def validate_non_negative_float(cls, v):
         if v < 0:
             raise ValueError("Must be >= 0")

@@ -73,6 +73,9 @@ The `API_URL` in `docs/app.js` defaults to the Render URL. Change it to
 > **Free tier note:** Render free tier spins down after 15 min of inactivity.
 > The first request after sleep takes ~30 seconds. Upgrade to Starter ($7/mo)
 > for always-on. Alternatively, use Railway or Fly.io.
+>
+> **CORS note:** `render.yaml` defaults `CORS_ORIGINS` to `*` for demo convenience.
+> In production, replace it with your exact frontend origin(s).
 
 ---
 

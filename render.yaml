@@ -23,6 +23,6 @@ services:
       - key: ARTIFACT_PATH
         value: "models/model.pkl"
       - key: CORS_ORIGINS
-        value: "https://yourusername.github.io"
+        value: "*"
       - key: LOG_LEVEL
         value: "INFO"

@@ -511,6 +511,7 @@ def train(data_path: str, output_dir: str = "models") -> dict:
     # ── Train & evaluate ──────────────────────────────────────────────────
     print(f"\n🏋️  Training {len(model_defs)} models…")
     model_results = {}
+    trained_models = {}
 
     for name, model, needs_sw in tqdm(model_defs, desc="Models"):
         print(f"\n  → {name}")
@@ -548,12 +549,17 @@ def train(data_path: str, output_dir: str = "models") -> dict:
                          key=lambda t: f1_score(y_test, (y_prob >= t).astype(int), zero_division=0))
         cm_opt_raw = confusion_matrix(y_test, (y_prob >= opt_t).astype(int))
 
+        cv_mean_raw = float(np.mean(cv_scores))
+        cv_std_raw  = float(np.std(cv_scores))
+
+        trained_models[name] = model
         model_results[name] = {
-            "model":      model,
             "roc_auc":    roc,
             "pr_auc":     pr,
-            "cv_mean":    round(float(np.mean(cv_scores)), 4),
-            "cv_std":     round(float(np.std(cv_scores)), 4),
+            "cv_mean_raw": cv_mean_raw,
+            "cv_std_raw":  cv_std_raw,
+            "cv_mean":    round(cv_mean_raw, 4),
+            "cv_std":     round(cv_std_raw, 4),
             "brier":      round(float(brier_score_loss(y_test, y_prob)), 4),
             "report":     rep,
             "y_test":     y_test.tolist(),
@@ -563,9 +569,17 @@ def train(data_path: str, output_dir: str = "models") -> dict:
             "opt_thresh": round(float(opt_t), 2),
         }
 
-    best_name  = max(model_results, key=lambda k: model_results[k]["pr_auc"])
-    best_model = model_results[best_name]["model"]
-    print(f"\n🏆 Best model: {best_name}  (ROC-AUC={model_results[best_name]['roc_auc']:.4f})")
+    # Select by CV PR-AUC (robust to test-set overfitting), with test PR-AUC as tiebreaker.
+    best_name  = max(
+        model_results,
+        key=lambda k: (model_results[k]["cv_mean_raw"], model_results[k]["pr_auc"]),
+    )
+    best_model = trained_models[best_name]
+    print(
+        f"\n🏆 Best model: {best_name}  "
+        f"(CV-PR={model_results[best_name]['cv_mean_raw']:.4f}, "
+        f"Test PR-AUC={model_results[best_name]['pr_auc']:.4f})"
+    )
 
     # ── Feature importance ────────────────────────────────────────────────
     # _unwrap_clf now correctly handles CalibratedClassifierCV (v4 fix)
@@ -646,6 +660,7 @@ def train(data_path: str, output_dir: str = "models") -> dict:
         "best_model":       best_name,
         "test_set_size":    len(y_test_arr),
         "optimal_f1_threshold": threshold_analysis["optimal_f1_threshold"],
+        "model_selection_metric": "cv_pr_auc",
     }
     print(f"\n📋 Training metadata: {training_metadata}")
 

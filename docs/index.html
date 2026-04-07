@@ -9,12 +9,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <link rel="stylesheet" href="style.css">
-<style>
-.trace-row{display:flex;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:10px}
-.trace-row:last-child{border-bottom:none}
-.trace-k{color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;flex-shrink:0;margin-right:12px}
-.trace-v{color:var(--text);text-align:right}
-</style>
 <script defer src="https://cloud.umami.is/script.js" data-website-id="39a871e4-0554-4159-bb8d-2d2ced68bd07"></script>
 </head>
 <body>
@@ -96,11 +90,13 @@
 
 <!-- ── TABS ───────────────────────────────────────────────────────────────── -->
 <div class="tabs-wrapper">
-  <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('eda', this)"><span class="tab-icon">📊</span>Exploratory Analysis</button>
-    <button class="tab-btn" onclick="switchTab('model', this)"><span class="tab-icon">🤖</span>Model Performance</button>
-    <button class="tab-btn" onclick="switchTab('scorer', this)"><span class="tab-icon">🎯</span>Live Scorer</button>
-    <button class="tab-btn" onclick="switchTab('impact', this)"><span class="tab-icon">💼</span>Business Impact</button>
+  <div class="wrapper">
+    <div class="tabs" role="tablist" aria-label="FraudShield dashboard sections">
+      <button class="tab-btn active" id="tab-btn-eda" role="tab" type="button" aria-selected="true" aria-controls="tab-eda" data-tab="eda" tabindex="0"><span class="tab-icon">📊</span>Exploratory Analysis</button>
+      <button class="tab-btn" id="tab-btn-model" role="tab" type="button" aria-selected="false" aria-controls="tab-model" data-tab="model" tabindex="-1"><span class="tab-icon">🤖</span>Model Performance</button>
+      <button class="tab-btn" id="tab-btn-scorer" role="tab" type="button" aria-selected="false" aria-controls="tab-scorer" data-tab="scorer" tabindex="-1"><span class="tab-icon">🎯</span>Live Scorer</button>
+      <button class="tab-btn" id="tab-btn-impact" role="tab" type="button" aria-selected="false" aria-controls="tab-impact" data-tab="impact" tabindex="-1"><span class="tab-icon">💼</span>Business Impact</button>
+    </div>
   </div>
 </div>
 
@@ -116,53 +112,53 @@
   <!-- ════════════════════════════════════════════════════════════════════════
        TAB 1 — EDA
   ══════════════════════════════════════════════════════════════════════════ -->
-  <div class="tab-panel active" id="tab-eda">
+  <div class="tab-panel active" id="tab-eda" role="tabpanel" aria-labelledby="tab-btn-eda" tabindex="0">
     <div class="section-head">
       <div class="section-title">Fraud Patterns <em>at a Glance</em></div>
-      <div class="section-cap">Where, when, and how fraud occurs across 50,000 banking transactions.</div>
+      <div class="section-cap">Where, when, and how fraud occurs across <span id="eda-total-tx">all</span> banking transactions.</div>
     </div>
 
-    <div class="grid-2" style="margin-bottom:14px">
+    <div class="grid-2 section-block">
       <div class="card">
         <div class="card-title">Fraud Rate by Transaction Type</div>
-        <div style="height:190px"><canvas id="chart-type"></canvas></div>
+        <div class="chart-frame chart-h-190"><canvas id="chart-type"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Fraud Rate by Merchant Category</div>
-        <div style="height:190px"><canvas id="chart-merchant"></canvas></div>
+        <div class="chart-frame chart-h-190"><canvas id="chart-merchant"></canvas></div>
       </div>
     </div>
 
-    <div class="grid-2" style="margin-bottom:14px">
+    <div class="grid-2 section-block">
       <div class="card">
         <div class="card-title">Fraud Rate by City</div>
-        <div style="height:270px"><canvas id="chart-city"></canvas></div>
+        <div class="chart-frame chart-h-270"><canvas id="chart-city"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Fraud Rate by Hour of Day</div>
-        <div style="height:270px"><canvas id="chart-hour"></canvas></div>
+        <div class="chart-frame chart-h-270"><canvas id="chart-hour"></canvas></div>
       </div>
     </div>
 
-    <div class="grid-2" style="margin-bottom:14px">
+    <div class="grid-2 section-block">
       <div class="card">
         <div class="card-title">Amount Distribution — Fraud vs Normal</div>
-        <div style="height:210px"><canvas id="chart-amount"></canvas></div>
+        <div class="chart-frame chart-h-210"><canvas id="chart-amount"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Fraud Rate by Prior Fraud History</div>
-        <div style="height:210px"><canvas id="chart-prevfraud"></canvas></div>
+        <div class="chart-frame chart-h-210"><canvas id="chart-prevfraud"></canvas></div>
       </div>
     </div>
 
-    <div class="card" style="margin-bottom:14px">
+    <div class="card section-block">
       <div class="card-title">Fraud Rate — International × New Merchant Combinations</div>
-      <div style="height:170px"><canvas id="chart-combo"></canvas></div>
+      <div class="chart-frame chart-h-170"><canvas id="chart-combo"></canvas></div>
     </div>
 
     <hr class="divider">
 
-    <div class="section-title" style="font-size:18px;margin-bottom:14px">Key <em>Insights</em></div>
+    <div class="section-title section-title-sm">Key <em>Insights</em></div>
     <div class="insight-grid">
       <div class="insight-card">
         <div class="insight-icon">🌍</div>
@@ -190,57 +186,57 @@
   <!-- ════════════════════════════════════════════════════════════════════════
        TAB 2 — MODEL PERFORMANCE
   ══════════════════════════════════════════════════════════════════════════ -->
-  <div class="tab-panel" id="tab-model">
+  <div class="tab-panel" id="tab-model" role="tabpanel" aria-labelledby="tab-btn-model" tabindex="0" hidden>
     <div class="section-head">
       <div class="section-title">Model Comparison <em>&amp; Evaluation</em></div>
-      <div class="section-cap">Three classifiers · 5-fold stratified CV · SHAP explainability · Decision threshold optimiser</div>
+      <div class="section-cap">Classifier benchmark · 5-fold stratified CV · SHAP explainability · Decision threshold optimiser</div>
     </div>
 
-    <div class="card" style="margin-bottom:18px">
+    <div class="card section-block-lg">
       <div class="card-title">Model Comparison</div>
       <div id="model-table-wrap"><div class="loading"><div class="spinner"></div>Loading…</div></div>
     </div>
 
-    <div class="grid-2" style="margin-bottom:14px">
+    <div class="grid-2 section-block">
       <div class="card">
         <div class="card-title">ROC Curve</div>
-        <div style="height:290px"><canvas id="chart-roc"></canvas></div>
+        <div class="chart-frame chart-h-290"><canvas id="chart-roc"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Precision-Recall Curve</div>
-        <div style="height:290px"><canvas id="chart-pr"></canvas></div>
+        <div class="chart-frame chart-h-290"><canvas id="chart-pr"></canvas></div>
       </div>
     </div>
 
-    <div class="grid-2" style="margin-bottom:14px">
+    <div class="grid-2 section-block">
       <div class="card">
         <div class="card-title">Confusion Matrix — Best Model
-          <span id="cm-thresh-label" style="color:var(--accent);margin-left:6px">@ 0.5</span>
-          <button class="btn-ghost" id="cm-toggle-btn" style="margin-left:auto;font-size:9px" onclick="toggleCM()">Show Optimal Threshold</button>
+          <span id="cm-thresh-label" class="cm-thresh-label">@ 0.5</span>
+          <button class="btn-ghost btn-ghost-inline" id="cm-toggle-btn" type="button" onclick="toggleCM()">Show Optimal Threshold</button>
         </div>
-        <div id="cm-wrap" style="padding:10px 0"><div class="loading"><div class="spinner"></div>Loading…</div></div>
+        <div id="cm-wrap" class="cm-wrap"><div class="loading"><div class="spinner"></div>Loading…</div></div>
       </div>
       <div class="card">
-        <div class="card-title">Feature Importance (Tree)</div>
-        <div style="height:270px"><canvas id="chart-fi"></canvas></div>
+        <div class="card-title">Feature Importance</div>
+        <div class="chart-frame chart-h-270"><canvas id="chart-fi"></canvas></div>
       </div>
     </div>
 
-    <div class="grid-2" style="margin-bottom:14px">
+    <div class="grid-2 section-block">
       <div class="card">
         <div class="card-title">Global SHAP — Mean |SHAP|</div>
-        <div style="height:270px"><canvas id="chart-shap"></canvas></div>
+        <div class="chart-frame chart-h-270"><canvas id="chart-shap"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Calibration Curve</div>
-        <div style="height:270px"><canvas id="chart-cal"></canvas></div>
+        <div class="chart-frame chart-h-270"><canvas id="chart-cal"></canvas></div>
       </div>
     </div>
 
     <hr class="divider">
 
-    <div class="section-title" style="font-size:18px;margin-bottom:6px">Threshold <em>Optimiser</em></div>
-    <p style="color:var(--text-dim);font-size:12px;margin-bottom:18px">
+    <div class="section-title section-title-tight">Threshold <em>Optimiser</em></div>
+    <p class="section-copy">
       Fraud classifiers are never deployed at 0.5. Drag to see precision, recall, and F1 trade off in real time.
     </p>
     <div class="slider-row">
@@ -252,23 +248,23 @@
       <div class="t-metric"><div class="t-metric-val" id="tm-prec">—</div><div class="t-metric-lbl">Precision</div></div>
       <div class="t-metric"><div class="t-metric-val" id="tm-rec">—</div><div class="t-metric-lbl">Recall</div></div>
       <div class="t-metric"><div class="t-metric-val" id="tm-f1">—</div><div class="t-metric-lbl">F1</div></div>
-      <div class="t-metric"><div class="t-metric-val" id="tm-fp" style="color:var(--warning)">—</div><div class="t-metric-lbl">False Pos</div></div>
-      <div class="t-metric"><div class="t-metric-val" id="tm-fn" style="color:var(--danger)">—</div><div class="t-metric-lbl">False Neg</div></div>
+      <div class="t-metric"><div class="t-metric-val metric-warning" id="tm-fp">—</div><div class="t-metric-lbl">False Pos</div></div>
+      <div class="t-metric"><div class="t-metric-val metric-danger" id="tm-fn">—</div><div class="t-metric-lbl">False Neg</div></div>
     </div>
     <div class="card">
       <div class="card-title">Precision / Recall / F1 vs Threshold</div>
-      <div style="height:250px"><canvas id="chart-threshold"></canvas></div>
+      <div class="chart-frame chart-h-250"><canvas id="chart-threshold"></canvas></div>
     </div>
 
     <hr class="divider">
 
     <div class="grid-2">
       <div>
-        <div class="section-title" style="font-size:18px;margin-bottom:14px">Model <em>Card</em></div>
+        <div class="section-title section-title-sm">Model <em>Card</em></div>
         <div class="model-card" id="model-card-content"><div class="loading"><div class="spinner"></div>Loading…</div></div>
       </div>
       <div>
-        <div class="section-title" style="font-size:18px;margin-bottom:14px">Classification <em>Report</em></div>
+        <div class="section-title section-title-sm">Classification <em>Report</em></div>
         <div id="clf-report-wrap"><div class="loading"><div class="spinner"></div>Loading…</div></div>
       </div>
     </div>
@@ -277,7 +273,7 @@
   <!-- ════════════════════════════════════════════════════════════════════════
        TAB 3 — LIVE SCORER
   ══════════════════════════════════════════════════════════════════════════ -->
-  <div class="tab-panel" id="tab-scorer">
+  <div class="tab-panel" id="tab-scorer" role="tabpanel" aria-labelledby="tab-btn-scorer" tabindex="0" hidden>
     <div class="section-head">
       <div class="section-title">Live <em>Fraud Scorer</em></div>
       <div class="section-cap">Enter a transaction for instant fraud probability, SHAP explanation, and risk breakdown.</div>
@@ -292,8 +288,8 @@
             <div class="field"><label>Amount ($)</label><input type="number" id="f-amount" value="5000" min="0" max="100000" step="100"></div>
             <div class="field"><label>Account Balance ($)</label><input type="number" id="f-balance" value="20000" min="0" max="100000" step="1000"></div>
             <div class="field">
-              <label>Distance from Home (km) <span style="color:var(--accent);font-size:9px">auto</span></label>
-              <input type="number" id="f-distance" value="0" min="0" max="20000" readonly style="opacity:0.6;cursor:not-allowed">
+              <label>Distance from Home (km) <span class="field-badge">auto</span></label>
+              <input type="number" id="f-distance" class="readonly-input" value="0" min="0" max="20000" readonly>
             </div>
             <div class="field"><label>Time (HH:MM)</label><input type="text" id="f-time" value="14:30"></div>
 
@@ -381,6 +377,12 @@
                 <option>Mumbai</option><option>São Paulo</option><option>Buenos Aires</option>
               </select>
             </div>
+
+            <div class="field field-full">
+              <div class="field-helper" id="f-geo-summary" aria-live="polite">
+                Distance and international status update automatically from the selected locations.
+              </div>
+            </div>
           </div>
         </div>
 
@@ -401,7 +403,8 @@
           <div class="form-grid form-grid-3">
             <div class="field">
               <label>International?</label>
-              <select id="f-intl"><option>No</option><option>Yes</option></select>
+              <input type="text" id="f-intl" class="readonly-input" value="Yes" readonly>
+              <div class="field-helper">Auto-derived from the selected locations.</div>
             </div>
             <div class="field">
               <label>New Merchant?</label>
@@ -414,7 +417,7 @@
           </div>
         </div>
 
-        <button class="btn-primary" id="score-btn" onclick="scoreTransaction()">⚡ &nbsp;Analyse Transaction</button>
+        <button class="btn-primary" id="score-btn" type="button" onclick="scoreTransaction()">⚡ &nbsp;Analyse Transaction</button>
       </div>
 
       <!-- RESULT PANEL -->
@@ -424,17 +427,17 @@
             <div class="result-empty-icon">🛡️</div>
             <div class="result-empty-text">Fill in the transaction<br>details and click Analyse</div>
           </div>
-          <div id="result-content" style="display:none">
+          <div id="result-content" hidden>
             <div class="prob-label">Risk Score (0–100)</div>
             <div class="prob-number" id="result-prob">—</div>
             <div><span class="tier-badge" id="result-tier">—</span></div>
-            <div class="gauge-track"><div class="gauge-fill" id="gauge-fill" style="width:0%"></div></div>
-            <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-faint)" id="result-meta-line">—</div>
+            <div class="gauge-track"><div class="gauge-fill" id="gauge-fill"></div></div>
+            <div class="result-meta-line" id="result-meta-line">—</div>
 
             <div class="flags-title">Decision trace</div>
-            <div id="result-decision-trace" style="display:none;margin:0 0 14px;padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-sm);"></div>
+            <div id="result-decision-trace" class="trace-panel" hidden></div>
 
-            <div id="shap-section" style="display:none">
+            <div id="shap-section" hidden>
               <div class="flags-title">Why this score? (SHAP)</div>
               <div id="shap-waterfall"></div>
             </div>
@@ -445,15 +448,17 @@
           </div>
         </div>
 
-        <div class="history-section" id="history-section" style="display:none">
+        <div class="history-section" id="history-section" hidden>
           <div class="history-title">
             <span>Session History</span>
-            <button class="btn-ghost" onclick="clearHistory()">Clear</button>
+            <button class="btn-ghost" type="button" onclick="clearHistory()">Clear</button>
           </div>
-          <table class="data-table">
-            <thead><tr><th>#</th><th>Type</th><th>Amount</th><th>Location</th><th>Score</th><th>Tier</th></tr></thead>
-            <tbody id="history-body"></tbody>
-          </table>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>#</th><th>Type</th><th>Amount</th><th>Location</th><th>Score</th><th>Tier</th></tr></thead>
+              <tbody id="history-body"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -462,7 +467,7 @@
   <!-- ════════════════════════════════════════════════════════════════════════
        TAB 4 — BUSINESS IMPACT
   ══════════════════════════════════════════════════════════════════════════ -->
-  <div class="tab-panel" id="tab-impact">
+  <div class="tab-panel" id="tab-impact" role="tabpanel" aria-labelledby="tab-btn-impact" tabindex="0" hidden>
     <div class="section-head">
       <div class="section-title">Business <em>Impact Analysis</em></div>
       <div class="section-cap">Translating ML metrics into financial outcomes using a configurable cost matrix.</div>
@@ -487,7 +492,7 @@
           <input type="number" id="monthly-vol" value="50000" min="1000" max="500000" step="5000">
         </div>
       </div>
-      <button class="btn-primary" style="max-width:200px;margin-top:14px" onclick="recalcImpact()">Recalculate</button>
+      <button class="btn-primary btn-primary-inline" type="button" onclick="recalcImpact()">Recalculate</button>
     </div>
 
     <!-- 4 main KPI cards — redesigned with icons, header row, and context sub-labels -->
@@ -535,11 +540,11 @@
     <div class="grid-2" style="margin-bottom:22px">
       <div class="card">
         <div class="card-title">Business Cost Curve vs Threshold</div>
-        <div style="height:270px"><canvas id="chart-cost"></canvas></div>
+        <div class="chart-frame chart-h-270"><canvas id="chart-cost"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Monthly Savings vs No-Model Baseline</div>
-        <div style="height:270px"><canvas id="chart-savings"></canvas></div>
+        <div class="chart-frame chart-h-270"><canvas id="chart-savings"></canvas></div>
       </div>
     </div>
 

@@ -63,6 +63,60 @@ const CITY_COORDS = {
   "Buenos Aires":   [-34.6037,  -58.3816],
 };
 
+const CITY_COUNTRY = {
+  "New York": "US",
+  "Los Angeles": "US",
+  "Chicago": "US",
+  "Houston": "US",
+  "Phoenix": "US",
+  "Philadelphia": "US",
+  "San Antonio": "US",
+  "San Diego": "US",
+  "Dallas": "US",
+  "San Francisco": "US",
+  "Austin": "US",
+  "Seattle": "US",
+  "Denver": "US",
+  "Nashville": "US",
+  "Louisville": "US",
+  "Portland": "US",
+  "Las Vegas": "US",
+  "Memphis": "US",
+  "Atlanta": "US",
+  "Miami": "US",
+  "Boston": "US",
+  "Washington DC": "US",
+  "Detroit": "US",
+  "Indianapolis": "US",
+  "Columbus": "US",
+  "Charlotte": "US",
+  "Toronto": "CA",
+  "Vancouver": "CA",
+  "Montreal": "CA",
+  "Calgary": "CA",
+  "London": "GB",
+  "Paris": "FR",
+  "Berlin": "DE",
+  "Madrid": "ES",
+  "Rome": "IT",
+  "Amsterdam": "NL",
+  "Dublin": "IE",
+  "Zurich": "CH",
+  "Vienna": "AT",
+  "Brussels": "BE",
+  "Copenhagen": "DK",
+  "Stockholm": "SE",
+  "Oslo": "NO",
+  "Helsinki": "FI",
+  "Lisbon": "PT",
+  "Istanbul": "TR",
+  "Tokyo": "JP",
+  "Singapore": "SG",
+  "Mumbai": "IN",
+  "São Paulo": "BR",
+  "Buenos Aires": "AR",
+};
+
 function haversine(c1, c2) {
   if (!CITY_COORDS[c1] || !CITY_COORDS[c2]) return null;
   const [lat1, lon1] = CITY_COORDS[c1];
@@ -72,6 +126,17 @@ function haversine(c1, c2) {
   const a = Math.sin(dLat / 2) ** 2
           + Math.cos(lat1 * toR) * Math.cos(lat2 * toR) * Math.sin(dLon / 2) ** 2;
   return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+function formatNumber(value) {
+  return Number(value).toLocaleString();
+}
+
+function isInternationalRoute(home, location) {
+  const homeCountry = CITY_COUNTRY[home];
+  const txCountry   = CITY_COUNTRY[location];
+  if (!homeCountry || !txCountry) return null;
+  return homeCountry !== txCountry;
 }
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
@@ -127,6 +192,14 @@ function lerpColor(a, b, t) {
 
 function el(id)           { return document.getElementById(id); }
 function setText(id, val) { const e = el(id); if (e) e.textContent = val; }
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 const pct = v => (v * 100).toFixed(2) + '%';
 
@@ -143,17 +216,22 @@ function animCount(element, target, suffix = '', dec = 0) {
 
 // ── CONFUSION MATRIX HELPERS ──────────────────────────────────────────────────
 function renderCM(cm) {
+  const tn = Number(cm?.[0]?.[0] ?? 0);
+  const fp = Number(cm?.[0]?.[1] ?? 0);
+  const fn = Number(cm?.[1]?.[0] ?? 0);
+  const tp = Number(cm?.[1]?.[1] ?? 0);
+  const fmt = v => escapeHtml(Number.isFinite(v) ? Math.round(v).toLocaleString() : '0');
   el('cm-wrap').innerHTML = `
     <div class="cm-grid">
       <div class="cm-label"></div>
       <div class="cm-label">Pred Normal</div>
       <div class="cm-label">Pred Fraud</div>
       <div class="cm-label">Actual Normal</div>
-      <div class="cm-cell tn">${cm[0][0].toLocaleString()}<div class="cm-cell-type">TN</div></div>
-      <div class="cm-cell fp">${cm[0][1].toLocaleString()}<div class="cm-cell-type">FP</div></div>
+      <div class="cm-cell tn">${fmt(tn)}<div class="cm-cell-type">TN</div></div>
+      <div class="cm-cell fp">${fmt(fp)}<div class="cm-cell-type">FP</div></div>
       <div class="cm-label">Actual Fraud</div>
-      <div class="cm-cell fn">${cm[1][0].toLocaleString()}<div class="cm-cell-type">FN</div></div>
-      <div class="cm-cell tp">${cm[1][1].toLocaleString()}<div class="cm-cell-type">TP</div></div>
+      <div class="cm-cell fn">${fmt(fn)}<div class="cm-cell-type">FN</div></div>
+      <div class="cm-cell tp">${fmt(tp)}<div class="cm-cell-type">TP</div></div>
     </div>`;
 }
 
@@ -175,12 +253,42 @@ function toggleCM() {
 
 // ── TABS ──────────────────────────────────────────────────────────────────────
 function switchTab(id, btn) {
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  el('tab-' + id).classList.add('active');
-  btn.classList.add('active');
+  document.querySelectorAll('.tab-panel').forEach(panel => {
+    const active = panel.id === 'tab-' + id;
+    panel.classList.toggle('active', active);
+    panel.hidden = !active;
+  });
+  document.querySelectorAll('.tab-btn').forEach(tabBtn => {
+    const active = tabBtn === btn;
+    tabBtn.classList.toggle('active', active);
+    tabBtn.setAttribute('aria-selected', String(active));
+    tabBtn.tabIndex = active ? 0 : -1;
+  });
   if (id === 'model'  && MODEL_DATA) renderModelCharts(MODEL_DATA);
   if (id === 'impact' && MODEL_DATA) recalcImpact();
+}
+
+function activateTab(id, { focus = true } = {}) {
+  const btn = document.querySelector(`.tab-btn[data-tab="${id}"]`);
+  if (!btn) return;
+  switchTab(id, btn);
+  if (focus) btn.focus();
+}
+
+function handleTabKeydown(event) {
+  const tabs = [...document.querySelectorAll('.tab-btn')];
+  const currentIndex = tabs.indexOf(event.currentTarget);
+  if (currentIndex === -1) return;
+
+  let nextIndex = null;
+  if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+  if (event.key === 'ArrowLeft')  nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+  if (event.key === 'Home')       nextIndex = 0;
+  if (event.key === 'End')        nextIndex = tabs.length - 1;
+  if (nextIndex === null) return;
+
+  event.preventDefault();
+  activateTab(tabs[nextIndex].dataset.tab);
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -194,8 +302,10 @@ async function apiFetch(path) {
 async function boot() {
   try {
     const health = await apiFetch('/api/health');
+    const healthModel = escapeHtml((health.model || '').split(' ')[0]);
+    const healthAuc = Number.parseFloat(health.roc_auc).toFixed(4);
     el('status-badge').innerHTML =
-      `<div class="status-dot"></div> API Online · ${health.model.split(' ')[0]} · AUC ${parseFloat(health.roc_auc).toFixed(4)}`;
+      `<div class="status-dot"></div> API Online · ${healthModel} · AUC ${escapeHtml(healthAuc)}`;
 
     [EDA_DATA, MODEL_DATA] = await Promise.all([
       apiFetch('/api/eda'),
@@ -219,6 +329,7 @@ function populateKPIs(eda, model) {
   animCount(el('kpi-fraud'), o.total_fraud, '', 0);
   setText('kpi-rate', pct(o.fraud_rate));
   setText('kpi-vol', (o.total_amount / 1_000_000).toFixed(1) + 'M');
+  setText('eda-total-tx', formatNumber(o.total_transactions));
 
   const best = model.comparison.find(m => m.is_best);
   setText('kpi-model', best.name.split(' ')[0]);
@@ -344,26 +455,29 @@ function renderModelCharts(d) {
   // tab switches without the broken !charts['chart-roc'].destroyed check.
   if (charts['chart-roc']) return;
 
-  const palette = [MINT, PUR, '#EC4899'];
+  const palette = [MINT, PUR, '#EC4899', BLUE, AMBER];
 
   // Comparison table
   const thead = `<tr>
     <th>Model</th><th>ROC-AUC</th><th>PR-AUC</th><th>CV PR-AUC (5-fold)</th>
     <th>Brier ↓</th><th>Precision</th><th>Recall</th><th>F1</th>
   </tr>`;
-  const tbody = d.comparison.map(m => `
+  const tbody = d.comparison.map(m => {
+    const modelName = escapeHtml(m.name);
+    return `
     <tr class="${m.is_best ? 'best-row' : ''}">
-      <td>${m.name} ${m.is_best ? '<span class="badge-best">BEST</span>' : ''}</td>
-      <td class="num">${m.roc_auc}</td>
-      <td class="num">${m.pr_auc}</td>
-      <td class="num">${m.cv_mean} <span style="color:var(--text-faint)">±${m.cv_std}</span></td>
-      <td>${m.brier}</td>
-      <td>${m.precision}</td>
-      <td>${m.recall}</td>
-      <td class="num">${m.f1}</td>
-    </tr>`).join('');
+      <td>${modelName} ${m.is_best ? '<span class="badge-best">BEST</span>' : ''}</td>
+      <td class="num">${escapeHtml(m.roc_auc)}</td>
+      <td class="num">${escapeHtml(m.pr_auc)}</td>
+      <td class="num">${escapeHtml(m.cv_mean)} <span style="color:var(--text-faint)">±${escapeHtml(m.cv_std)}</span></td>
+      <td>${escapeHtml(m.brier)}</td>
+      <td>${escapeHtml(m.precision)}</td>
+      <td>${escapeHtml(m.recall)}</td>
+      <td class="num">${escapeHtml(m.f1)}</td>
+    </tr>`;
+  }).join('');
   el('model-table-wrap').innerHTML =
-    `<table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+    `<div class="table-scroll"><table class="data-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
 
   // ROC
   makeChart('chart-roc', {
@@ -373,7 +487,7 @@ function renderModelCharts(d) {
         ...d.comparison.map((m, i) => ({
           label: `${m.name.split(' ')[0]} ${m.roc_auc}`,
           data: d.curves[m.name].roc.fpr.map((x, j) => ({ x, y: d.curves[m.name].roc.tpr[j] })),
-          borderColor: palette[i], borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0,
+          borderColor: palette[i % palette.length], borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0,
         })),
         { label: 'Random', data: [{ x: 0, y: 0 }, { x: 1, y: 1 }], borderColor: GRID, borderWidth: 1, borderDash: [5, 4], pointRadius: 0, fill: false },
       ],
@@ -396,7 +510,7 @@ function renderModelCharts(d) {
         ...d.comparison.map((m, i) => ({
           label: `${m.name.split(' ')[0]} ${m.pr_auc}`,
           data: d.curves[m.name].pr.recall.map((x, j) => ({ x, y: d.curves[m.name].pr.precision[j] })),
-          borderColor: palette[i], borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0,
+          borderColor: palette[i % palette.length], borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0,
         })),
         { label: `Baseline ${pct(d.fraud_rate)}`, data: [{ x: 0, y: d.fraud_rate }, { x: 1, y: d.fraud_rate }], borderColor: GRID, borderWidth: 1, borderDash: [5, 4], pointRadius: 0, fill: false },
       ],
@@ -450,34 +564,38 @@ function renderModelCharts(d) {
 
   // Model card
   const best = d.comparison.find(m => m.is_best);
+  const datasetRows = EDA_DATA?.overview?.total_transactions;
+  const datasetText = Number.isFinite(datasetRows)
+    ? `${formatNumber(datasetRows)} banking transactions`
+    : 'the training dataset';
   el('model-card-content').innerHTML = `
-    <div class="model-card-title">${best.name}</div>
-    <strong>DATASET</strong> — 50,000 banking transactions · ${pct(d.fraud_rate)} fraud rate<br>
+    <div class="model-card-title">${escapeHtml(best.name)}</div>
+    <strong>DATASET</strong> — ${escapeHtml(datasetText)} · ${escapeHtml(pct(d.fraud_rate))} fraud rate<br>
     <strong>IMBALANCE</strong> — Handled via class weighting / scale_pos_weight<br>
     <strong>EVALUATION</strong> — Stratified 80/20 split + 5-fold stratified CV (scored on PR-AUC)<br>
     <strong>PRIMARY METRIC</strong> — PR-AUC (appropriate for imbalanced classification; used for model selection)<br>
-    <strong>OPT. THRESHOLD</strong> — ${d.threshold_analysis.optimal_f1_threshold} (F1) · ${d.threshold_analysis.optimal_cost_threshold} (cost-optimal)<br>
+    <strong>OPT. THRESHOLD</strong> — ${escapeHtml(d.threshold_analysis.optimal_f1_threshold)} (F1) · ${escapeHtml(d.threshold_analysis.optimal_cost_threshold)} (cost-optimal)<br>
     <strong style="color:var(--warning)">LIMITATIONS</strong> — Trained on synthetic data; calibration may drift on real distributions<br>
     <strong style="color:var(--warning)">BIAS CHECK</strong> — No demographic features used — no protected-class risk`;
 
   el('clf-report-wrap').innerHTML = `
-    <table class="data-table">
+    <div class="table-scroll"><table class="data-table">
       <thead><tr><th>Class</th><th>Precision</th><th>Recall</th><th>F1</th></tr></thead>
       <tbody>
         <tr>
           <td>Normal (0)</td>
-          <td class="num">${best.precision_normal}</td>
-          <td class="num">${best.recall_normal}</td>
-          <td class="num">${best.f1_normal}</td>
+          <td class="num">${escapeHtml(best.precision_normal)}</td>
+          <td class="num">${escapeHtml(best.recall_normal)}</td>
+          <td class="num">${escapeHtml(best.f1_normal)}</td>
         </tr>
         <tr class="best-row">
           <td>Fraud (1)</td>
-          <td class="num">${best.precision}</td>
-          <td class="num">${best.recall}</td>
-          <td class="num">${best.f1}</td>
+          <td class="num">${escapeHtml(best.precision)}</td>
+          <td class="num">${escapeHtml(best.recall)}</td>
+          <td class="num">${escapeHtml(best.f1)}</td>
         </tr>
       </tbody>
-    </table>`;
+    </table></div>`;
 }
 
 // ── THRESHOLD ─────────────────────────────────────────────────────────────────
@@ -521,8 +639,23 @@ function updateThresholdMetrics(t) {
 function updateDistance() {
   const distEl = el('f-distance');
   if (!distEl) return;
-  const d = haversine(el('f-home').value, el('f-location').value);
+  const home = el('f-home').value;
+  const location = el('f-location').value;
+  const d = haversine(home, location);
   if (d !== null) distEl.value = d;
+
+  const intlValue = isInternationalRoute(home, location);
+  const intlEl = el('f-intl');
+  if (intlEl && intlValue !== null) {
+    intlEl.value = intlValue ? 'Yes' : 'No';
+  }
+
+  const summaryEl = el('f-geo-summary');
+  if (summaryEl) {
+    const distanceText = d === null ? 'distance unavailable' : `${formatNumber(d)} km apart`;
+    const intlText = intlValue === null ? 'International status unavailable' : `international: ${intlValue ? 'Yes' : 'No'}`;
+    summaryEl.textContent = `Auto-derived from location selections: ${distanceText} · ${intlText}.`;
+  }
 }
 
 async function scoreTransaction() {
@@ -577,8 +710,8 @@ function renderResult(data, input) {
   const panel = el('result-panel');
   panel.className = 'result-panel ' + tier;
 
-  el('result-empty').style.display   = 'none';
-  el('result-content').style.display = 'block';
+  el('result-empty').hidden   = true;
+  el('result-content').hidden = false;
 
   el('result-prob').className   = 'prob-number ' + tier;
   el('result-prob').textContent = data.risk_score_pct;
@@ -598,14 +731,14 @@ function renderResult(data, input) {
   const traceEl = el('result-decision-trace');
   if (traceEl && trace) {
     const ruleHtml = trace.rule_engine.fired
-      ? `<span style="color:var(--warning)">${trace.rule_engine.rule_id}</span>`
+      ? `<span style="color:var(--warning)">${escapeHtml(trace.rule_engine.rule_id)}</span>`
       : `<span style="color:var(--text-faint)">No rule fired</span>`;
     traceEl.innerHTML = `
-      <div class="trace-row"><span class="trace-k">ML probability</span><span class="trace-v">${data.ml_probability_pct} → ${trace.ml_tier}</span></div>
+      <div class="trace-row"><span class="trace-k">ML probability</span><span class="trace-v">${escapeHtml(data.ml_probability_pct)} → ${escapeHtml(trace.ml_tier)}</span></div>
       <div class="trace-row"><span class="trace-k">Rule engine</span><span class="trace-v">${ruleHtml}</span></div>
-      <div class="trace-row"><span class="trace-k">Composite</span><span class="trace-v">ML ${trace.composite.ml_component} + rules ${trace.composite.rule_component} = <strong>${trace.composite.total}</strong>/100</span></div>
-      <div class="trace-row"><span class="trace-k">Final tier</span><span class="trace-v" style="color:${gaugeColors[tier]};font-weight:600">${trace.final_tier}</span></div>`;
-    traceEl.style.display = 'block';
+      <div class="trace-row"><span class="trace-k">Composite</span><span class="trace-v">ML ${escapeHtml(trace.composite.ml_component)} + rules ${escapeHtml(trace.composite.rule_component)} = <strong>${escapeHtml(trace.composite.total)}</strong>/100</span></div>
+      <div class="trace-row"><span class="trace-k">Final tier</span><span class="trace-v" style="color:${gaugeColors[tier]};font-weight:600">${escapeHtml(trace.final_tier)}</span></div>`;
+    traceEl.hidden = false;
   }
 
   // FIX #2: SHAP waterfall bar widths were calculated incorrectly.
@@ -616,54 +749,60 @@ function renderResult(data, input) {
   const shapSec = el('shap-section');
   const shapWf  = el('shap-waterfall');
   if (data.shap_waterfall && data.shap_waterfall.length) {
-    shapSec.style.display = 'block';
+    shapSec.hidden = false;
     const maxAbs = Math.max(...data.shap_waterfall.map(r => Math.abs(r.value)));
     shapWf.innerHTML = data.shap_waterfall.map(r => {
       const pctW = maxAbs > 0 ? Math.abs(r.value) / maxAbs * 100 : 0;
       const pos  = r.value > 0;
       const col  = pos ? RED : MINT;
+      const feature = escapeHtml(r.feature);
+      const shapVal = `${r.value > 0 ? '+' : ''}${escapeHtml(r.value.toFixed(4))}`;
       return `<div class="shap-row">
-        <div class="shap-feat" title="${r.feature}">${r.feature}</div>
+        <div class="shap-feat" title="${feature}">${feature}</div>
         <div class="shap-bar-track">
           <div class="shap-bar-fill" style="left:${pos ? 50 : 50 - pctW}%;width:${pctW}%;background:${col}"></div>
           <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--border2)"></div>
         </div>
-        <div class="shap-val" style="color:${col}">${r.value > 0 ? '+' : ''}${r.value.toFixed(4)}</div>
+        <div class="shap-val" style="color:${col}">${shapVal}</div>
       </div>`;
     }).join('');
   } else {
-    shapSec.style.display = 'none';
+    shapSec.hidden = true;
   }
 
   // Flags
   const flagsEl = el('result-flags');
   flagsEl.innerHTML = data.flags.length
-    ? data.flags.map(f => `<div class="flag-item"><span class="icon">${f.icon}</span><span>${f.text}</span></div>`).join('')
+    ? data.flags.map(f => `<div class="flag-item"><span class="icon">${escapeHtml(f.icon)}</span><span>${escapeHtml(f.text)}</span></div>`).join('')
     : '<div class="flag-item"><span class="icon">✅</span><span>No strong individual risk signals detected</span></div>';
 
   el('result-meta').innerHTML =
-    `<span>Model: ${data.model}</span><span>ROC-AUC ${data.roc_auc}</span>`;
+    `<span>Model: ${escapeHtml(data.model)}</span><span>ROC-AUC ${escapeHtml(data.roc_auc)}</span>`;
 }
 
 function renderHistory() {
   if (!scoreHistory.length) return;
-  el('history-section').style.display = 'block';
+  el('history-section').hidden = false;
   const tierColors = { HIGH: RED, MEDIUM: AMBER, LOW: MINT };
   // FIX #13: prob is now stored as a number, so format it here for display.
-  el('history-body').innerHTML = scoreHistory.map((r, i) => `
+  el('history-body').innerHTML = scoreHistory.map((r, i) => {
+    const tierColor = tierColors[r.tier] || TEXT;
+    const tierLabel = escapeHtml(r.tier);
+    return `
     <tr>
       <td style="color:var(--text-faint)">${scoreHistory.length - i}</td>
-      <td>${r.tx_type}</td>
+      <td>${escapeHtml(r.tx_type)}</td>
       <td class="num">$${r.amount.toLocaleString()}</td>
-      <td>${r.tx_location}</td>
+      <td>${escapeHtml(r.tx_location)}</td>
       <td class="num">${r.prob.toFixed(1)}%</td>
-      <td><span style="color:${tierColors[r.tier]};font-weight:600">${r.tier}</span></td>
-    </tr>`).join('');
+      <td><span style="color:${tierColor};font-weight:600">${tierLabel}</span></td>
+    </tr>`;
+  }).join('');
 }
 
 function clearHistory() {
   scoreHistory = [];
-  el('history-section').style.display = 'none';
+  el('history-section').hidden = true;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -688,8 +827,9 @@ function recalcImpact() {
     tp:     r.tp,
   }));
 
+  const totalFraudInTest = THRESH_DATA.length ? (THRESH_DATA[0].tp + THRESH_DATA[0].fn) : 0;
   const optRow       = rows.reduce((a, b) => a.total < b.total ? a : b);
-  const baselineCost = rows[rows.length - 1].fn_c;
+  const baselineCost = totalFraudInTest * costFn * scale;
   const savingsRows  = rows.map(r => ({ t: r.t, s: baselineCost - r.total }));
   const bestSave     = savingsRows.reduce((a, b) => a.s > b.s ? a : b);
 
@@ -762,6 +902,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (homeEl) homeEl.addEventListener('change', updateDistance);
   if (locEl)  locEl.addEventListener('change',  updateDistance);
   updateDistance();
+
+  document.querySelectorAll('.tab-btn').forEach(tabBtn => {
+    tabBtn.addEventListener('click', () => activateTab(tabBtn.dataset.tab, { focus: false }));
+    tabBtn.addEventListener('keydown', handleTabKeydown);
+  });
 
   const slider = el('threshold-slider');
   if (slider) {

@@ -163,7 +163,8 @@ h1 em { font-style: normal; color: var(--accent); }
     font-size: 9px;
     padding: 8px 12px;
     white-space: normal;
-    word-break: break-all;
+    overflow-wrap: anywhere;
+    word-break: normal;
   }
 }
 
@@ -286,19 +287,20 @@ h1 em { font-style: normal; color: var(--accent); }
     letter-spacing: 0.06em;
   }
 }
-/* FIX: At very small widths (420px) hide the label text and show icon only
-   so 4 tabs still fit without horizontal scrolling. */
+/* FIX: At very small widths (420px) keep labels visible but compact.
+   This avoids the "unfinished icon-only tabs" feel on phones. */
 @media (max-width: 420px) {
   .tabs { padding: 0; }
   .tab-btn {
-    flex: 1 1 0;           /* equal-width, fills the strip */
+    flex: 0 0 auto;
     justify-content: center;
-    padding: 12px 6px;
-    font-size: 0;          /* hide text */
-    gap: 0;
+    padding: 10px 8px;
+    font-size: 8px;
+    letter-spacing: 0.04em;
+    gap: 4px;
   }
   .tab-icon {
-    font-size: 16px;       /* enlarge icon to compensate */
+    font-size: 12px;
   }
 }
 
@@ -363,6 +365,7 @@ h1 em { font-style: normal; color: var(--accent); }
 .grid-3      { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .grid-4      { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 .grid-scorer { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 18px; align-items: start; }
+.grid-scorer > * { min-width: 0; align-self: start; }
 
 /* ── CARD ─────────────────────────────────────────────────────────────────── */
 .card {
@@ -532,6 +535,13 @@ h1 em { font-style: normal; color: var(--accent); }
   letter-spacing: 0.03em;
   line-height: 1.6;
 }
+.field-hint {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  margin-top: 4px;
+  line-height: 1.5;
+}
 .field-badge { color: var(--accent); font-size: 9px; }
 .readonly-input {
   opacity: 0.72;
@@ -568,6 +578,14 @@ h1 em { font-style: normal; color: var(--accent); }
 .btn-primary:active  { transform: scale(0.99); }
 .btn-primary:disabled { opacity: 0.3; cursor: not-allowed; }
 .btn-primary-inline { max-width: 200px; }
+.btn-score {
+  width: auto;
+  min-width: 248px;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .btn-ghost {
   background: none;
@@ -686,6 +704,7 @@ h1 em { font-style: normal; color: var(--accent); }
   font-family: var(--font-mono);
   font-size: 9px;
   color: var(--text-faint);
+  overflow-wrap: anywhere;
 }
 
 .flags-title {
@@ -719,6 +738,8 @@ h1 em { font-style: normal; color: var(--accent); }
   border-top: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
   letter-spacing: 0.04em;
 }
 
@@ -740,7 +761,7 @@ h1 em { font-style: normal; color: var(--accent); }
   flex-shrink: 0;
   margin-right: 12px;
 }
-.trace-v { color: var(--text); text-align: right; }
+.trace-v { color: var(--text); text-align: right; overflow-wrap: anywhere; }
 .trace-panel {
   margin: 0 0 14px;
   padding: 12px;
@@ -871,6 +892,52 @@ h1 em { font-style: normal; color: var(--accent); }
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 14px;
+}
+
+/* Classification report table is only 4 columns; avoid forcing a desktop width. */
+#clf-report-wrap .table-scroll .data-table { min-width: 0; }
+
+@media (max-width: 640px) {
+  .model-card {
+    padding: 14px;
+    font-size: 11px;
+    line-height: 1.85;
+    border-left-width: 1px;
+    border-radius: var(--r-md);
+  }
+  .model-card strong {
+    font-size: 9px;
+    letter-spacing: 0.04em;
+  }
+  .model-card-title {
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+  #clf-report-wrap .data-table {
+    font-size: 10px;
+  }
+  #clf-report-wrap .data-table th,
+  #clf-report-wrap .data-table td {
+    padding: 8px 10px;
+  }
+}
+
+@media (max-width: 420px) {
+  .model-card {
+    font-size: 10px;
+    line-height: 1.75;
+    padding: 12px;
+  }
+  .model-card-title {
+    font-size: 12px;
+  }
+  #clf-report-wrap .data-table {
+    font-size: 9px;
+  }
+  #clf-report-wrap .data-table th,
+  #clf-report-wrap .data-table td {
+    padding: 7px 8px;
+  }
 }
 
 /* ── BUSINESS IMPACT ──────────────────────────────────────────────────────── */
@@ -1035,6 +1102,7 @@ h1 em { font-style: normal; color: var(--accent); }
   justify-content: space-between;
   gap: 10px;
 }
+#history-section .table-scroll .data-table { min-width: 540px; }
 
 /* ── LOADING ──────────────────────────────────────────────────────────────── */
 .loading {
@@ -1234,6 +1302,12 @@ h1 em { font-style: normal; color: var(--accent); }
   .form-section,
   .cost-inputs,
   .result-panel { padding: 18px; }
+
+  /* Prevent iOS auto-zoom on form focus (which makes panels look like they grow). */
+  .field input,
+  .field select {
+    font-size: 16px;
+  }
 }
 
 /* ── 640px ────────────────────────────────────────────────────────────────── */
@@ -1274,6 +1348,14 @@ h1 em { font-style: normal; color: var(--accent); }
   /* FIX: projection values too large on small phones */
   .projection-item-val   { font-size: 22px; }
   .projection-item       { padding: 18px 16px; }
+  .projection-panel-head { align-items: flex-start; }
+  .projection-panel-note { width: 100%; }
+
+  .btn-primary-inline    { max-width: 100%; }
+  .btn-score {
+    min-width: 0;
+    width: auto;
+  }
 
   /* Cards and panels */
   .card,
@@ -1296,6 +1378,19 @@ h1 em { font-style: normal; color: var(--accent); }
   .shap-feat,
   .shap-val              { flex: initial; width: 100%; }
   .shap-bar-track        { width: 100%; }
+
+  #history-section .table-scroll .data-table {
+    min-width: 0;
+    font-size: 10px;
+  }
+  #history-section .data-table th,
+  #history-section .data-table td {
+    padding: 8px 8px;
+  }
+  #history-section .data-table th:nth-child(1),
+  #history-section .data-table td:nth-child(1) {
+    display: none;
+  }
 }
 
 /* ── 420px ────────────────────────────────────────────────────────────────── */
@@ -1318,6 +1413,16 @@ h1 em { font-style: normal; color: var(--accent); }
   .chart-h-270           { height: 220px; }
   .chart-h-290           { height: 240px; }
   .chart-h-250           { height: 200px; }
+
+  .history-title {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .history-title .btn-ghost {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 /* ── FOOTER ───────────────────────────────────────────────────────────────── */

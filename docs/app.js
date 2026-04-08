@@ -715,8 +715,21 @@ function updateDistance() {
   }
 }
 
+function lockScoreButtonWidth() {
+  const btn = el('score-btn');
+  if (!btn) return;
+  btn.style.width = 'auto';
+  btn.style.minWidth = '';
+  const px = Math.ceil(btn.getBoundingClientRect().width);
+  if (px > 0) {
+    btn.style.width = `${px}px`;
+    btn.style.minWidth = `${px}px`;
+  }
+}
+
 async function scoreTransaction() {
   const btn = el('score-btn');
+  lockScoreButtonWidth();
   btn.disabled   = true;
   btn.textContent = '⏳ Scoring…';
 
@@ -967,6 +980,13 @@ document.addEventListener('DOMContentLoaded', () => {
       updateThresholdMetrics(v);
     });
   }
+
+  // Keep analyse button width stable across text/disabled state changes.
+  requestAnimationFrame(lockScoreButtonWidth);
+  window.addEventListener('resize', () => {
+    const scoreBtn = el('score-btn');
+    if (scoreBtn && !scoreBtn.disabled) lockScoreButtonWidth();
+  });
 
   boot();
 });

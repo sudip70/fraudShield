@@ -4,24 +4,33 @@ services:
     name: fraudshield-api
     env: python
     plan: free
+
+    # FIX: The inline Python block has been moved to scripts/check_model.py.
+    # The original YAML `>` folded-block scalar collapsed the Python if/else onto
+    # one line, which worked by coincidence but was fragile, unreadable, and
+    # impossible to test or lint independently.
     buildCommand: >
       pip install -r backend/requirements.txt &&
-      python -c "
-      import os, subprocess, sys
-      if not os.path.exists('models/model.pkl'):
-          print('Model artifact not found — training now...')
+      python scripts/check_model.py
 
-          result = subprocess.run([sys.executable, 'src/pipeline.py', 'data/FraudShield_Banking_Data.csv'],cwd=os.path.dirname(os.path.abspath('render.yaml')),check=True,)
-          sys.exit(result.returncode)
-      else:
-          print('Model artifact found — skipping training.')
-      "
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+
+    # FIX: Define a health check path so Render only routes traffic once the
+    # model artifact is fully loaded and the app is genuinely ready to serve
+    # requests. Without this, Render marks the service live as soon as the
+    # process starts, which can result in 500 errors during the artifact-load
+    # phase (especially on cold starts where the pickle is large).
+    healthCheckPath: /api/health
+
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.0"
       - key: ARTIFACT_PATH
         value: "models/model.pkl"
+      # IMPORTANT: Change '*' to your exact GitHub Pages origin before going to
+      # production, e.g. 'https://yourusername.github.io'. The backend emits a
+      # startup warning when this is '*' to make accidental open-CORS deploys
+      # immediately visible in logs.
       - key: CORS_ORIGINS
         value: "*"
       - key: LOG_LEVEL

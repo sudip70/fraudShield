@@ -1,6 +1,6 @@
 """
-FraudShield — FastAPI Backend  v4
-==================================
+FraudShield — FastAPI Backend  v4.1
+=====================================
 Endpoints:
   GET  /api/health
   GET  /api/version
@@ -12,6 +12,22 @@ Environment variables (set in Render dashboard or render.yaml):
   ARTIFACT_PATH   Path to model.pkl  (default: models/model.pkl relative to repo root)
   CORS_ORIGINS    Comma-separated allowed origins  (default: * — lock down in production)
   LOG_LEVEL       Python logging level  (default: INFO)
+
+Changes in v4.1
+---------------
+- Pydantic version guard: raises a clear RuntimeError at import time if Pydantic v2
+  is detected, rather than letting @validator decorators silently do nothing.
+- opt_t safeguard: if the artifact's optimal F1 threshold is abnormally low (< 0.05),
+  a minimum of 0.05 is enforced so that the MEDIUM tier remains reachable and
+  composite scores are not inflated.
+- medium_t is now derived from the clamped opt_t, preventing medium_t == high_t == 0.
+- Production CORS warning: a startup log warning is emitted when CORS_ORIGINS is '*',
+  making accidental open-CORS production deploys visible immediately in logs.
+- Rule-points cap comment: documents that rule_points intentionally exceeds 40 before
+  the min() cap; the cap is design behaviour, not a bug.
+- _expected_international dead-code comment: the None branch is unreachable because
+  tx_location and home_loc are validated against VALID_CITIES == CITY_COUNTRY.keys()
+  before this function is called, but the guard is kept for defensive correctness.
 """
 
 import logging
@@ -24,7 +40,24 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, validator
+
+# ── Pydantic version guard ─────────────────────────────────────────────────────
+# @validator is a Pydantic v1 API.  In Pydantic v2, @validator is deprecated and
+# silently ignored by default, meaning all input validation would stop working.
+# We raise a clear error at import time rather than letting bad data reach the model.
+try:
+    import pydantic
+    _pydantic_major = int(pydantic.VERSION.split(".")[0])
+    if _pydantic_major >= 2:
+        raise RuntimeError(
+            f"Pydantic v2 ({pydantic.VERSION}) detected. This backend requires Pydantic v1 "
+            "(e.g. pydantic>=1.10,<2). Install the correct version with:\n"
+            "  pip install 'pydantic>=1.10,<2'\n"
+            "Or migrate the @validator decorators to @field_validator (Pydantic v2 API)."
+        )
+    from pydantic import BaseModel, validator
+except ImportError:
+    raise RuntimeError("pydantic is not installed. Run: pip install 'pydantic>=1.10,<2'")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from src.pipeline import preprocess, _shap_values_for_class1
@@ -56,6 +89,15 @@ log = logging.getLogger("fraudshield")
 log.info("CORS_ORIGINS  = %s", CORS_ORIGINS)
 log.info("ARTIFACT_PATH = %s", ARTIFACT_PATH)
 log.info("LOG_LEVEL     = %s", LOG_LEVEL)
+
+# FIX: Warn loudly when CORS is open to all origins so accidental production
+# deploys are immediately visible in logs, even on Render's free tier.
+if "*" in CORS_ORIGINS:
+    log.warning(
+        "CORS is open to ALL origins ('*'). This is fine for demos but should be "
+        "restricted in production — set the CORS_ORIGINS env var to your frontend "
+        "origin(s), e.g. 'https://yourusername.github.io'."
+    )
 
 # ── Load artifacts once at startup ────────────────────────────────────────────
 def load_artifacts():
@@ -90,7 +132,7 @@ arts = load_artifacts()
 app = FastAPI(
     title="FraudShield API",
     description="Fraud detection ML backend — EDA stats, model metrics, live scoring",
-    version="4.0.0",
+    version="4.1.0",
 )
 
 app.add_middleware(
@@ -118,9 +160,6 @@ def clean_nan(val):
 
 
 # ── Tier ranking helper ────────────────────────────────────────────────────────
-# FIX #3: used by predict() to take the strictest of rule-engine tier and
-# score-based tier, preventing a rule override from being silently downgraded
-# by a lower composite score.
 _TIER_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
 
 def _max_tier(a: str, b: str) -> str:
@@ -154,11 +193,37 @@ VALID_CITIES = set(CITY_COUNTRY.keys())
 
 
 def _expected_international(home_loc: str, tx_loc: str):
+    """
+    Derive the expected is_intl value from the two city names.
+
+    NOTE: The None return branch is technically unreachable in practice because
+    both home_loc and tx_loc are validated against VALID_CITIES (== CITY_COUNTRY.keys())
+    before this function is called, so CITY_COUNTRY.get() will always find them.
+    The None guard is kept for defensive correctness in case VALID_CITIES and
+    CITY_COUNTRY drift out of sync in a future edit.
+    """
     home_country = CITY_COUNTRY.get(home_loc)
     tx_country   = CITY_COUNTRY.get(tx_loc)
     if home_country is None or tx_country is None:
         return None
     return "Yes" if home_country != tx_country else "No"
+
+
+# ── Optimal threshold safeguard ────────────────────────────────────────────────
+# FIX: Clamp the artifact's optimal F1 threshold to a minimum of 0.05.
+# If the threshold is 0 or near-zero (e.g. due to extreme class imbalance in a
+# small test set), then medium_t == high_t == 0, making the MEDIUM tier unreachable
+# and inflating composite scores — nearly every transaction would score HIGH.
+# The minimum of 0.05 corresponds to the lowest step in compute_threshold_analysis.
+_RAW_OPT_T = arts["threshold_analysis"]["optimal_f1_threshold"]
+if _RAW_OPT_T < 0.05:
+    log.warning(
+        "Artifact optimal_f1_threshold is abnormally low (%.4f). "
+        "Clamping to 0.05 to prevent MEDIUM tier becoming unreachable and "
+        "composite scores being inflated. Retrain on a larger dataset to fix.",
+        _RAW_OPT_T,
+    )
+_CLAMPED_OPT_T = max(_RAW_OPT_T, 0.05)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -190,7 +255,7 @@ def version():
     """
     meta = arts.get("training_metadata", {})
     return {
-        "api_version":          "4.0.0",
+        "api_version":          "4.1.0",
         "pipeline_version":     meta.get("pipeline_version", "unknown"),
         "trained_at":           meta.get("trained_at"),
         "sklearn_version":      meta.get("sklearn_version"),
@@ -201,10 +266,8 @@ def version():
         "best_model":           meta.get("best_model", arts["best_name"]),
         "test_set_size":        arts.get("test_set_size"),
         "model_selection_metric": meta.get("model_selection_metric"),
-        "optimal_f1_threshold": meta.get(
-            "optimal_f1_threshold",
-            arts["threshold_analysis"]["optimal_f1_threshold"],
-        ),
+        "optimal_f1_threshold": _CLAMPED_OPT_T,
+        "raw_optimal_f1_threshold": _RAW_OPT_T,
     }
 
 
@@ -328,7 +391,7 @@ def model_info():
         "shap_global":                 shap_global,
         "calibration":                 cal,
         "threshold_analysis": {
-            "optimal_f1_threshold":   thresh["optimal_f1_threshold"],
+            "optimal_f1_threshold":   _CLAMPED_OPT_T,
             "optimal_cost_threshold": thresh["optimal_cost_threshold"],
             "data": [
                 {k: round(v, 5) if isinstance(v, float) else v for k, v in row.items()}
@@ -417,6 +480,9 @@ class TransactionInput(BaseModel):
             values.get("home_loc"),
             values.get("tx_location"),
         )
+        # expected is None only if a city is missing from CITY_COUNTRY — see
+        # _expected_international docstring. In practice this branch is unreachable
+        # because both fields are already validated against VALID_CITIES above.
         if expected is not None and v != expected:
             raise ValueError(
                 f"is_intl must match selected locations (expected '{expected}')"
@@ -450,6 +516,10 @@ def predict(tx: TransactionInput):
         tx.amount, tx.tx_location, tx.is_intl, tx.is_new, tx.prev_fraud, tx.failed,
     )
 
+    # NOTE: Dummy fields (Transaction_ID, IP_Address, Fraud_Label, etc.) are required
+    # by engineer_features' column references but are not used as model features.
+    # If engineer_features is ever updated to reference these fields as features,
+    # replace these placeholders with real values from the request.
     row = pd.DataFrame([{
         "Transaction_Amount":           tx.amount,
         "Transaction_Time":             tx.tx_time,
@@ -470,7 +540,7 @@ def predict(tx: TransactionInput):
         "Failed_Transaction_Count":     tx.failed,
         "Unusual_Time_Transaction":     tx.unusual,
         "Previous_Fraud_Count":         tx.prev_fraud,
-        # Required by engineer_features but not used as model features
+        # Required by engineer_features but not used as model features.
         "Transaction_ID": 0, "Customer_ID": 0, "Merchant_ID": 0,
         "Device_ID": 0, "IP_Address": "0.0.0.0", "Fraud_Label": "Normal",
     }])
@@ -484,22 +554,14 @@ def predict(tx: TransactionInput):
         raise HTTPException(status_code=500, detail=str(e))
 
     # ── ML-tier thresholds ────────────────────────────────────────────────
-    opt_t = arts["threshold_analysis"]["optimal_f1_threshold"]
-
-    # FIX #12: Warn if opt_t is abnormally low. A very small threshold anchors
-    # the ml_component calculation at 60 pts for almost all inputs, inflating
-    # composite scores and making nearly every transaction HIGH risk.
-    if opt_t < 0.1:
-        log.warning(
-            "opt_t is very low (%.4f) — composite scores may be inflated. "
-            "Check threshold_analysis in the model artifact.",
-            opt_t,
-        )
-
-    high_t   = opt_t
+    # Use the clamped threshold (minimum 0.05) so medium_t is always strictly
+    # less than high_t, keeping the MEDIUM tier reachable even when the artifact
+    # was trained on a dataset with an extreme class imbalance that drove
+    # optimal_f1_threshold close to zero.
+    opt_t    = _CLAMPED_OPT_T
     medium_t = round(opt_t * 0.5, 4)
 
-    if prob >= high_t:
+    if prob >= opt_t:
         ml_tier = "HIGH"
     elif prob >= medium_t:
         ml_tier = "MEDIUM"
@@ -544,6 +606,12 @@ def predict(tx: TransactionInput):
     # ── Composite risk score (0–100) ──────────────────────────────────────
     ml_component = min(60.0, (prob / max(opt_t, 1e-9)) * 60.0)
 
+    # NOTE: Individual rule_points items are intentionally additive and can
+    # sum beyond 40 when many signals fire together.  The min(40.0, ...) cap
+    # is by design — it bounds the rule component to its allocated budget so the
+    # ML component (0–60) always dominates when the model is confident.  The cap
+    # discards the excess rather than compressing it, which is acceptable because
+    # the tier assignment (HIGH/MEDIUM/LOW) is separate from the numeric score.
     rule_points = 0.0
     if tx.prev_fraud > 0:             rule_points += 12.0
     if tx.failed >= 2:                rule_points += 8.0
@@ -553,7 +621,7 @@ def predict(tx: TransactionInput):
     elif tx.distance > 500:           rule_points += 2.0
     if tx.unusual == "Yes":           rule_points += 3.0
     if tx.tx_location != tx.home_loc: rule_points += 2.0
-    # Combination bonuses — non-additive risk
+    # Combination bonuses — non-additive risk uplift for co-occurring signals
     if tx.is_intl == "Yes" and tx.is_new == "Yes":  rule_points += 5.0
     if tx.prev_fraud > 0 and tx.is_intl == "Yes":   rule_points += 5.0
     if tx.prev_fraud > 0 and tx.failed >= 2:         rule_points += 5.0
@@ -562,14 +630,6 @@ def predict(tx: TransactionInput):
     risk_score = round(ml_component + rule_component, 1)
 
     # ── Composite tier ────────────────────────────────────────────────────
-    # FIX #3: Previously the rule engine wrote to a mutable `tier` variable
-    # which was then used as both the rule result and an input to composite_tier
-    # logic, causing a rule HIGH override to be silently downgraded if the
-    # composite score fell below 70.
-    #
-    # Now: score_tier is derived purely from the numeric score; rule_tier tracks
-    # the strictest tier any rule demanded. composite_tier is the maximum of the
-    # two, so a rule can only ever raise the tier, never lower it.
     score_tier     = "HIGH" if risk_score >= 70 else "MEDIUM" if risk_score >= 35 else "LOW"
     composite_tier = _max_tier(score_tier, rule_tier)
 

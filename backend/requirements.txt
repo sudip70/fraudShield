@@ -4,7 +4,14 @@ pandas>=2.0
 numpy>=1.24
 scikit-learn>=1.3
 lightgbm>=4.3
+# xgboost is optional in the pipeline (guarded by try/import) but included here
+# so Render always has it available. Remove if build time or disk space is a concern.
 xgboost>=2.0
 shap>=0.44
 python-multipart>=0.0.9
 tqdm>=4.65
+# IMPORTANT: Pin Pydantic to v1. The @validator decorators in main.py are Pydantic v1
+# API. Pydantic v2 deprecated @validator and it silently does nothing, meaning all
+# input validation on /api/predict would be bypassed. Migrate to @field_validator
+# before removing this pin.
+pydantic>=1.10,<2

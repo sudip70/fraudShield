@@ -13,6 +13,10 @@ Fixes and improvements over v3:
     first, e.g. "ATM" for an unseen transaction type) — now they map to "Unknown"
     which is a meaningful, consistent fallback.
   - SHAP: TreeExplainer is now correctly used for RF (after unwrapping calibration).
+  - compute_eda no longer mutates the caller's dataframe — a defensive copy is
+    taken at the top of the function (v4.1 fix).
+  - Feature importance extraction now logs an explicit ERROR (not just a warning)
+    when it falls back to all-ones, so silent failures are visible in logs (v4.1).
 
   NEW FEATURES
   ------------
@@ -20,6 +24,20 @@ Fixes and improvements over v3:
     row count, fraud rate, feature count, best model name.  Exposed via
     GET /api/version so the frontend can display it.
   - Encoder fit is deterministic (sorted class list) and idempotent.
+
+  FEATURE NOTES
+  -------------
+  - Amount_ZScore: uses (amt - avg) / (avg + 1) as the denominator rather than a
+    true population std-dev, because per-row std is not available at inference time.
+    The name is intentionally kept for continuity but the denominator is the
+    customer's own rolling average, not a distribution std.  This is a deviation
+    signal, not a textbook z-score.
+  - Daily_vs_Expected clip: asymmetric (-5, 20) — tight lower bound because very
+    low daily counts are not inherently risky; wide upper bound to preserve signal
+    for burst-transaction fraud patterns.
+  - SHAP values are computed on a 500-row sample of X_test for speed. Global SHAP
+    importance is therefore approximate and may not perfectly match full-dataset
+    importance on smaller fraud classes.
 """
 
 import os
@@ -176,12 +194,20 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     # ── Amount deviation signals ──────────────────────────────────────────
+    # NOTE: Amount_ZScore uses the customer's own rolling average as the
+    # denominator (avg + 1) rather than a population std-dev, because
+    # per-row std is unavailable at inference time. It measures how many
+    # "average-transaction-units" the current amount deviates from the
+    # customer's norm — a deviation signal, not a textbook z-score.
     df["Amount_ZScore"]      = ((amt - avg) / (avg + 1)).clip(-5, 20)
     df["Amount_Spike_Flag"]  = (amt > avg * 2).astype(int)
     df["Max24h_Utilization"] = (mx / (avg + 1e-9)).clip(0, 20)
 
-    # ── Velocity & behavioral anomaly ────────────────────────────────────
-    expected_daily             = wk / 7
+    # ── Velocity & behavioral anomaly ─────────────────────────────────────
+    expected_daily          = wk / 7
+    # Clip: asymmetric (-5, 20). Lower bound is tight because a low daily
+    # count relative to expectation is not inherently risky; upper bound
+    # is wide to preserve signal for burst-transaction fraud patterns.
     df["Daily_vs_Expected"]    = (dy - expected_daily).clip(-5, 20)
     df["Failed_Rate"]          = (fail / (dy + 1)).clip(0, 1)
     df["Spend_Velocity_Today"] = (amt * dy / (avg + 1e-9)).clip(0, 200)
@@ -279,7 +305,19 @@ def _fraud_rate_by(df: pd.DataFrame, col: str) -> list:
 
 
 def compute_eda(df: pd.DataFrame) -> dict:
+    """
+    Compute EDA statistics from the raw training dataframe.
+
+    FIX (v4.1): Takes a defensive copy at the top so fillna operations on
+    categorical columns do not mutate the caller's dataframe.  Previously the
+    in-place `df[col] = df[col].fillna(...)` assignments silently modified the
+    df that was passed in, which could cause incorrect labels in downstream steps
+    (e.g. the fraud_rate calculation in train() would see different NaN counts).
+    """
     print("📊 Computing EDA stats…")
+
+    # Defensive copy — never mutate the caller's dataframe.
+    df = df.copy()
 
     categorical_cols = [
         "Transaction_Type", "Merchant_Category", "Transaction_Location",
@@ -396,6 +434,10 @@ def _unwrap_clf(model):
     FIX (v4): previously returned CalibratedClassifierCV itself, which has no
     feature_importances_ or coef_, causing feature importance to silently fall
     back to all-ones and SHAP to pick the wrong explainer type.
+
+    NOTE: Only one level of CalibratedClassifierCV is unwrapped. If the base
+    estimator is itself a Pipeline (not the case here), a second call to
+    _unwrap_clf on the result would be needed.
     """
     # Unwrap Pipeline first (e.g. StandardScaler → LogisticRegression)
     if hasattr(model, "named_steps"):
@@ -426,6 +468,7 @@ def train(data_path: str, output_dir: str = "models") -> dict:
     fraud_rate = (df[TARGET] == "Fraud").mean()
     print(f"   {len(df):,} rows  |  Fraud rate: {fraud_rate:.2%}")
 
+    # compute_eda takes its own copy internally; passing df here is safe.
     eda = compute_eda(df)
 
     print("\n🔧 Preprocessing…")
@@ -582,7 +625,11 @@ def train(data_path: str, output_dir: str = "models") -> dict:
     )
 
     # ── Feature importance ────────────────────────────────────────────────
-    # _unwrap_clf now correctly handles CalibratedClassifierCV (v4 fix)
+    # _unwrap_clf now correctly handles CalibratedClassifierCV (v4 fix).
+    # FIX (v4.1): On extraction failure we now log ERROR (not just a warning)
+    # because the all-ones fallback produces misleading feature importance output
+    # in the dashboard.  The artifact is still saved so the API remains functional,
+    # but the failure is loud enough to be investigated before a production deploy.
     try:
         inner_clf = _unwrap_clf(best_model)
         imp = (
@@ -596,17 +643,25 @@ def train(data_path: str, output_dir: str = "models") -> dict:
             .reset_index(drop=True)
         )
     except Exception as e:
-        print(f"   ⚠️  Feature importance extraction failed: {e}")
+        print(
+            f"   ❌ ERROR: Feature importance extraction failed: {e}\n"
+            "   Falling back to all-ones (uniform) importance — dashboard feature "
+            "importance chart will be INCORRECT. Investigate before deploying."
+        )
         fi = pd.DataFrame({"feature": feature_names, "importance": np.ones(len(feature_names))})
 
     # ── SHAP ─────────────────────────────────────────────────────────────
     # TreeExplainer is now correctly used for RF because _unwrap_clf returns the
     # base RandomForestClassifier (not CalibratedClassifierCV). (v4 fix)
+    #
+    # NOTE: SHAP is computed on a 500-row sample of X_test for speed. The
+    # resulting global importance is approximate and may not perfectly reflect
+    # full-dataset importance, particularly for rare fraud patterns.
     shap_data      = None
     shap_explainer = None
     if SHAP_AVAILABLE:
         try:
-            print("\n🔬 Computing SHAP values…")
+            print("\n🔬 Computing SHAP values (500-row sample of test set)…")
             sample    = X_test.sample(min(500, len(X_test)), random_state=42)
             inner_clf = _unwrap_clf(best_model)
 
@@ -651,7 +706,7 @@ def train(data_path: str, output_dir: str = "models") -> dict:
     # Stored in the artifact so /api/version can expose it without re-training.
     training_metadata = {
         "trained_at":      datetime.now().isoformat(),
-        "pipeline_version": "4",
+        "pipeline_version": "4.1",
         "sklearn_version":  sklearn.__version__,
         "lgbm_version":     LGB_VERSION,
         "n_rows":           int(len(df)),

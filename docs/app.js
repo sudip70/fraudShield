@@ -63,6 +63,10 @@ const CITY_COORDS = {
   "Buenos Aires":   [-34.6037,  -58.3816],
 };
 
+// NOTE: CITY_COUNTRY and CITY_COORDS must stay in sync with each other and with
+// the <select> option lists in index.html. If a city is present in the <select>
+// but absent from CITY_COORDS, haversine() returns null and the user sees a
+// warning in the geo-summary field rather than a stale distance value.
 const CITY_COUNTRY = {
   "New York": "US",
   "Los Angeles": "US",
@@ -193,6 +197,8 @@ function lerpColor(a, b, t) {
 function el(id)           { return document.getElementById(id); }
 function setText(id, val) { const e = el(id); if (e) e.textContent = val; }
 function escapeHtml(value) {
+  // SECURITY: All dynamic content written to innerHTML must go through escapeHtml.
+  // Content written to textContent is safe without escaping.
   return String(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -300,25 +306,58 @@ async function apiFetch(path) {
 
 // ── BOOT ──────────────────────────────────────────────────────────────────────
 async function boot() {
+  // Check API health first.
+  let healthOk = false;
   try {
     const health = await apiFetch('/api/health');
     const healthModel = escapeHtml((health.model || '').split(' ')[0]);
     const healthAuc = Number.parseFloat(health.roc_auc).toFixed(4);
     el('status-badge').innerHTML =
       `<div class="status-dot"></div> API Online · ${healthModel} · AUC ${escapeHtml(healthAuc)}`;
-
-    [EDA_DATA, MODEL_DATA] = await Promise.all([
-      apiFetch('/api/eda'),
-      apiFetch('/api/model'),
-    ]);
-
-    THRESH_DATA = MODEL_DATA.threshold_analysis.data;
-    populateKPIs(EDA_DATA, MODEL_DATA);
-    renderEDACharts(EDA_DATA);
+    healthOk = true;
   } catch (e) {
     el('status-badge').innerHTML = `<span style="color:var(--warning)">⚠ API Offline</span>`;
     el('api-banner').classList.add('show');
     console.warn('API unreachable:', e);
+    return; // Nothing else to load if the API is down.
+  }
+
+  // FIX: Fetch EDA and model data independently so a failure in one does not
+  // prevent the other from loading. Previously Promise.all() meant a SHAP
+  // out-of-memory error on the model endpoint (common on Render free tier)
+  // would also wipe out the EDA tab.
+  if (healthOk) {
+    let edaOk = false;
+
+    try {
+      EDA_DATA = await apiFetch('/api/eda');
+      edaOk = true;
+    } catch (e) {
+      console.warn('Failed to load EDA data:', e);
+      setText('eda-total-tx', 'unavailable');
+    }
+
+    try {
+      MODEL_DATA = await apiFetch('/api/model');
+      THRESH_DATA = MODEL_DATA.threshold_analysis.data;
+    } catch (e) {
+      console.warn('Failed to load model data:', e);
+      // Leave MODEL_DATA null; tab renders will show their loading placeholders.
+    }
+
+    if (EDA_DATA && MODEL_DATA) {
+      populateKPIs(EDA_DATA, MODEL_DATA);
+    } else if (EDA_DATA) {
+      // Partial population — fill what we can from EDA alone.
+      const o = EDA_DATA.overview;
+      animCount(el('kpi-total'), o.total_transactions, '', 0);
+      animCount(el('kpi-fraud'), o.total_fraud, '', 0);
+      setText('kpi-rate', pct(o.fraud_rate));
+      setText('kpi-vol', (o.total_amount / 1_000_000).toFixed(1) + 'M');
+      setText('eda-total-tx', formatNumber(o.total_transactions));
+    }
+
+    if (EDA_DATA) renderEDACharts(EDA_DATA);
   }
 }
 
@@ -449,10 +488,10 @@ function renderEDACharts(d) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function renderModelCharts(d) {
-  // FIX #8: Chart.js v4 does not expose a .destroyed property.
-  // Use the chart instance itself as the guard — makeChart() already calls
-  // destroy() before recreating, so this correctly prevents double-init on
-  // tab switches without the broken !charts['chart-roc'].destroyed check.
+  // Guard: if chart-roc already exists, charts were already rendered this session.
+  // makeChart() calls destroy() before recreating, so re-renders are safe — but
+  // we avoid them on tab re-entry for performance. If you need a force-refresh
+  // (e.g. after a data reload), delete charts['chart-roc'] before calling this.
   if (charts['chart-roc']) return;
 
   const palette = [MINT, PUR, '#EC4899', BLUE, AMBER];
@@ -639,22 +678,40 @@ function updateThresholdMetrics(t) {
 function updateDistance() {
   const distEl = el('f-distance');
   if (!distEl) return;
-  const home = el('f-home').value;
-  const location = el('f-location').value;
-  const d = haversine(home, location);
-  if (d !== null) distEl.value = d;
 
+  const home     = el('f-home').value;
+  const location = el('f-location').value;
+  const d        = haversine(home, location);
   const intlValue = isInternationalRoute(home, location);
+
   const intlEl = el('f-intl');
   if (intlEl && intlValue !== null) {
     intlEl.value = intlValue ? 'Yes' : 'No';
   }
 
   const summaryEl = el('f-geo-summary');
+
+  // FIX: If a city is present in the <select> but missing from CITY_COORDS,
+  // haversine() returns null. Instead of silently keeping the stale distance
+  // value in the field, we show a clear warning so the mismatch is visible to
+  // both users and developers. Update CITY_COORDS to fix.
+  if (d === null) {
+    if (distEl) distEl.value = 0;
+    if (summaryEl) {
+      const missing = !CITY_COORDS[home] ? home : location;
+      summaryEl.textContent =
+        `⚠ Distance unavailable — "${missing}" is missing from CITY_COORDS. ` +
+        `Update app.js to fix. International status: ${intlValue === null ? 'unavailable' : intlValue ? 'Yes' : 'No'}.`;
+      summaryEl.style.color = 'var(--warning)';
+    }
+    return;
+  }
+
+  if (distEl) distEl.value = d;
   if (summaryEl) {
-    const distanceText = d === null ? 'distance unavailable' : `${formatNumber(d)} km apart`;
-    const intlText = intlValue === null ? 'International status unavailable' : `international: ${intlValue ? 'Yes' : 'No'}`;
-    summaryEl.textContent = `Auto-derived from location selections: ${distanceText} · ${intlText}.`;
+    summaryEl.style.color = '';
+    const intlText = intlValue === null ? 'international status unavailable' : `international: ${intlValue ? 'Yes' : 'No'}`;
+    summaryEl.textContent = `Auto-derived from location selections: ${formatNumber(d)} km apart · ${intlText}.`;
   }
 }
 
@@ -693,9 +750,10 @@ async function scoreTransaction() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     renderResult(data, payload);
-    // FIX #13: store risk_score as a number, not the formatted string,
-    // so history entries can be sorted or compared numerically later.
-    scoreHistory.unshift({ ...payload, prob: data.risk_score, tier: data.tier });
+    // FIX: Store riskScore (0–100 composite index) as a number so history
+    // entries can be sorted or compared numerically later. Previously named
+    // `prob` which was misleading — this is not a raw ML probability.
+    scoreHistory.unshift({ ...payload, riskScore: data.risk_score, tier: data.tier });
     renderHistory();
   } catch (e) {
     alert('Could not reach API. Make sure the backend is running.\n\n' + e.message);
@@ -741,11 +799,6 @@ function renderResult(data, input) {
     traceEl.hidden = false;
   }
 
-  // FIX #2: SHAP waterfall bar widths were calculated incorrectly.
-  // pctW is 0-100 representing the bar's share of the half-track.
-  // Positive bars: start at centre (50%) and extend right by pctW.
-  // Negative bars: start at (50 - pctW)% and extend right by pctW to meet centre.
-  // Previously pctW was halved a second time, making all bars half their correct size.
   const shapSec = el('shap-section');
   const shapWf  = el('shap-waterfall');
   if (data.shap_waterfall && data.shap_waterfall.length) {
@@ -784,7 +837,7 @@ function renderHistory() {
   if (!scoreHistory.length) return;
   el('history-section').hidden = false;
   const tierColors = { HIGH: RED, MEDIUM: AMBER, LOW: MINT };
-  // FIX #13: prob is now stored as a number, so format it here for display.
+  // riskScore is stored as a number (0–100 composite index, not a probability).
   el('history-body').innerHTML = scoreHistory.map((r, i) => {
     const tierColor = tierColors[r.tier] || TEXT;
     const tierLabel = escapeHtml(r.tier);
@@ -794,7 +847,7 @@ function renderHistory() {
       <td>${escapeHtml(r.tx_type)}</td>
       <td class="num">$${r.amount.toLocaleString()}</td>
       <td>${escapeHtml(r.tx_location)}</td>
-      <td class="num">${r.prob.toFixed(1)}%</td>
+      <td class="num">${r.riskScore.toFixed(1)}%</td>
       <td><span style="color:${tierColor};font-weight:600">${tierLabel}</span></td>
     </tr>`;
   }).join('');
@@ -833,8 +886,6 @@ function recalcImpact() {
   const savingsRows  = rows.map(r => ({ t: r.t, s: baselineCost - r.total }));
   const bestSave     = savingsRows.reduce((a, b) => a.s > b.s ? a : b);
 
-  // FIX #9: "M " prefix was misleading (implied millions). These are dollar
-  // amounts scaled from the test set to monthly volume, not millions.
   setText('biz-caught',         '$' + optRow.caught.toFixed(1));
   setText('biz-missed',         '$' + optRow.fn_c.toFixed(1));
   setText('biz-fp-cost',        '$' + optRow.fp_c.toFixed(4));

@@ -597,7 +597,8 @@ h1 em { font-style: normal; color: var(--accent); }
   font-size: 12px;
   line-height: 1.85;
   margin-top: 14px;
-  max-width: 62ch;
+  justify-content: center;
+  max-width: 85ch;
 }
 .about-link-grid {
   display: grid;
